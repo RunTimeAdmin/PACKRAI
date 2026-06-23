@@ -21,6 +21,10 @@ if (!process.env.HMAC_SECRET) {
 
 const app = express();
 
+// Deployed behind nginx; trust the first proxy so express-rate-limit
+// uses the real client IP from X-Forwarded-For rather than throwing.
+app.set('trust proxy', 1);
+
 // ── Security headers ──────────────────────────────────────────────────────────
 app.use(helmet({
     contentSecurityPolicy: {
@@ -187,7 +191,7 @@ async function osvEnrichAsync(orgId, cdxComponents, purlToCompId) {
         await db.query(
             `INSERT INTO vulnerabilities
                (component_id, org_id, osv_id, cve_id, severity, cvss_score, fixed_version, title)
-             SELECT $1, t.comp_id, t.osv_id, t.cve_id, t.severity, t.cvss_score, t.fixed_version, t.title
+             SELECT t.comp_id, $1, t.osv_id, t.cve_id, t.severity, t.cvss_score, t.fixed_version, t.title
              FROM UNNEST($2::uuid[], $3::text[], $4::text[], $5::text[], $6::numeric[], $7::text[], $8::text[])
                   AS t(comp_id, osv_id, cve_id, severity, cvss_score, fixed_version, title)
              ON CONFLICT (component_id, osv_id) DO UPDATE
@@ -400,7 +404,7 @@ app.post('/api/v1/ingest', ingestLimiter, requireScope('sbom:ingest'), async (re
                 await client.query(
                     `INSERT INTO vulnerabilities
                        (component_id, org_id, osv_id, cve_id, severity, cvss_score, fixed_version, title)
-                     SELECT $1, t.comp_id, t.osv_id, t.cve_id, t.severity, t.cvss_score, NULL, t.title
+                     SELECT t.comp_id, $1, t.osv_id, t.cve_id, t.severity, t.cvss_score, NULL, t.title
                      FROM UNNEST($2::uuid[], $3::text[], $4::text[], $5::text[], $6::numeric[], $7::text[])
                           AS t(comp_id, osv_id, cve_id, severity, cvss_score, title)
                      ON CONFLICT (component_id, osv_id) DO UPDATE
