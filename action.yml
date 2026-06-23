@@ -70,7 +70,7 @@ runs:
 
     - name: Install PackrAI dependencies
       shell: bash
-      run: npm ci --prefix "$GITHUB_ACTION_PATH" --omit=dev
+      run: npm install --prefix "$GITHUB_ACTION_PATH" --omit=dev --no-audit --no-fund
 
     - name: Generate SBOM
       id: run
