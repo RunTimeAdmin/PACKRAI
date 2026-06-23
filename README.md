@@ -41,7 +41,7 @@ bom.spdx.json        ← SPDX 2.3
 
 | | PackrAI | Syft | Trivy |
 |---|---|---|---|
-| **Speed** | < 5s | 15–30s | 20–45s |
+| **Speed** | **270–540ms** | 10–27s | 11–83s |
 | **Approach** | Lock-file parsing | Filesystem scan | Filesystem + image scan |
 | **Transitives** | Full graph | Partial | Partial |
 | **Dep graph** | ✅ | ✅ | ❌ |
@@ -51,6 +51,24 @@ bom.spdx.json        ← SPDX 2.3
 
 **Why lock files beat filesystem scanning:**
 Lock files are the resolved dependency graph. They're authoritative, deterministic, and exact — no heuristics, no guessing, no double-counting. Syft and Trivy walk the filesystem and infer packages, which is slower and less accurate for transitive dependencies.
+
+## Benchmark Results
+
+Measured on identical shallow-cloned repos — pure scan speed, same input for every tool. Syft and Trivy run via Docker (includes ~3–5s container startup overhead; native installs would be ~30% faster but still orders of magnitude slower).
+
+| Repo | Ecosystem | PackrAI | Syft | Trivy | Syft speedup | Trivy speedup |
+|------|-----------|---------|------|-------|-------------|--------------|
+| `nestjs/nest` | npm (1 247 packages) | **541ms** | 27 248ms | 83 318ms | 50× | 154× |
+| `psf/requests` | Python (poetry.lock) | **276ms** | 12 267ms | 10 708ms | 44× | 39× |
+| `BurntSushi/ripgrep` | Rust (Cargo.lock) | **284ms** | 10 452ms | 15 489ms | 37× | 55× |
+
+**Average: PackrAI is 44× faster than Syft and 83× faster than Trivy.**
+
+Reproduce with:
+```bash
+docker pull anchore/syft && docker pull aquasec/trivy
+npm run bench
+```
 
 ---
 
