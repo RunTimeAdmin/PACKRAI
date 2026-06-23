@@ -1,0 +1,37 @@
+# Drop this file into .github/workflows/ in any repo.
+# PackrAI will run on every PR and push to main.
+#
+# Optional: set PACKRAI_API_KEY in your repo secrets to push SBOMs
+# to your PackrAI central repository for org-wide tracking.
+
+name: SBOM
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write   # required for PR comments
+
+jobs:
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PackrAI
+        uses: packrai/sbom-action@v1
+        with:
+          # Scan the whole repo (default). Point at a subdirectory for monorepos:
+          # directory: apps/api
+          format: both               # cyclonedx + spdx
+          fail-on-critical: true     # blocks PR merge on CRITICAL vulns
+          upload-artifact: true      # SBOMs stored as build artifacts for 90 days
+
+          # Optional — push to PackrAI central API for org-wide CVE search:
+          # api-url: ${{ vars.PACKRAI_API_URL }}
+          # api-key: ${{ secrets.PACKRAI_API_KEY }}

@@ -74,6 +74,7 @@ async function generateFromDirectory(dir, opts = {}) {
             lockFilesScanned: lockFiles.map((lf) => lf.path),
             vulnerabilities: vulnCount,
             critical: criticalCount,
+            qualityScore: computeQualityScore(allComponents, lockFiles),
             elapsedMs,
         },
     };
@@ -93,6 +94,35 @@ function writeOutputs(result, outDir) {
     fs.writeFileSync(cdxPath, JSON.stringify(result.cyclonedx, null, 2));
     fs.writeFileSync(spdxPath, JSON.stringify(result.spdx, null, 2));
     return { cyclonedxPath: cdxPath, spdxPath };
+}
+
+/**
+ * Score 0-100 measuring SBOM completeness against CISA 2025 minimum elements.
+ *
+ * 25 pts  — all components have a valid purl
+ * 25 pts  — all components have at least one hash
+ * 25 pts  — all components have a known license (not NOASSERTION)
+ * 25 pts  — all lock files are high-fidelity (not requirements.txt fallbacks)
+ */
+function computeQualityScore(components, lockFiles) {
+    if (!components.length) return 0;
+
+    const withPurl    = components.filter((c) => c.purl && !c.purl.includes('NOASSERTION')).length;
+    const withHash    = components.filter((c) => c.hashes && c.hashes.length > 0).length;
+    const withLicense = components.filter((c) =>
+        c.license && c.license !== 'NOASSERTION' && c.license !== 'UNKNOWN').length;
+
+    const weakCount = lockFiles.filter((lf) => lf.type === 'requirements-txt').length;
+    const strongFraction = lockFiles.length > 0
+        ? (lockFiles.length - weakCount) / lockFiles.length
+        : 1;
+
+    return Math.round(
+        25 * (withPurl    / components.length) +
+        25 * (withHash    / components.length) +
+        25 * (withLicense / components.length) +
+        25 * strongFraction
+    );
 }
 
 module.exports = { generateFromDirectory, writeOutputs };

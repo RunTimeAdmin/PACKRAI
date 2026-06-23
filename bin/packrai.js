@@ -33,8 +33,10 @@ program
         const absDir = path.resolve(dir);
 
         try {
-            process.stdout.write(`\n  packrai v${pkg.version}\n`);
-            process.stdout.write(`  Scanning ${absDir}\n\n`);
+            if (!opts.json) {
+                process.stdout.write(`\n  packrai v${pkg.version}\n`);
+                process.stdout.write(`  Scanning ${absDir}\n\n`);
+            }
 
             const result = await generateFromDirectory(absDir, {
                 name: opts.name,
@@ -81,6 +83,7 @@ program
                 console.log(warn(`${vuln} vulnerabilities`));
             }
 
+            console.log(ok(`Quality score  ${stats.qualityScore}/100`));
             console.log(info(`${stats.lockFilesScanned.length} lock file(s) scanned in ${stats.elapsedMs}ms`));
             console.log('');
 
