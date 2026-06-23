@@ -20,8 +20,10 @@ function makePurl(ecosystem, name, version) {
         case 'cargo':
             return `pkg:cargo/${name}@${version}`;
         case 'golang':
-            // go module paths are already URL-like
             return `pkg:golang/${name}@${version}`;
+        case 'maven':
+            // name expected as "groupId/artifactId"
+            return `pkg:maven/${name}@${version}`;
         default:
             return `pkg:generic/${name}@${version}`;
     }

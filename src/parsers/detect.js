@@ -18,6 +18,7 @@ const LOCK_FILE_PATTERNS = [
     { file: 'requirements.txt',  type: 'requirements',ecosystem: 'pypi'   },
     { file: 'Cargo.lock',        type: 'cargo-lock',  ecosystem: 'cargo'  },
     { file: 'go.mod',            type: 'go-modules',  ecosystem: 'golang' },
+    { file: 'pom.xml',           type: 'maven-pom',   ecosystem: 'maven'  },
 ];
 
 // Directories to skip when walking
@@ -78,14 +79,16 @@ function deduplicate(lockFiles) {
 
     const result = [];
     for (const [, group] of byDir) {
-        const npm = pickBest(group.filter((f) => f.ecosystem === 'npm'), ['npm-lock', 'yarn-lock', 'pnpm-lock']);
+        const npm = pickBest(group.filter((f) => f.ecosystem === 'npm'), ['npm-lock', 'pnpm-lock', 'yarn-lock']);
         const pypi = pickBest(group.filter((f) => f.ecosystem === 'pypi'), ['poetry-lock', 'pipfile-lock', 'requirements']);
-        const cargo = group.find((f) => f.type === 'cargo-lock');
+        const cargo  = group.find((f) => f.type === 'cargo-lock');
         const golang = group.find((f) => f.type === 'go-modules');
-        if (npm) result.push(npm);
-        if (pypi) result.push(pypi);
-        if (cargo) result.push(cargo);
+        const maven  = group.find((f) => f.type === 'maven-pom');
+        if (npm)    result.push(npm);
+        if (pypi)   result.push(pypi);
+        if (cargo)  result.push(cargo);
         if (golang) result.push(golang);
+        if (maven)  result.push(maven);
     }
     return result;
 }

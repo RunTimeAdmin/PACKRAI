@@ -4,8 +4,10 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 const { parsePackageLock } = require('../src/parsers/npm');
-const { parseCargoLock } = require('../src/parsers/cargo');
-const { detect } = require('../src/parsers/detect');
+const { parseCargoLock }   = require('../src/parsers/cargo');
+const { parsePnpmLock }    = require('../src/parsers/pnpm');
+const { parsePomXml }      = require('../src/parsers/maven');
+const { detect }           = require('../src/parsers/detect');
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 
@@ -88,13 +90,102 @@ describe('detector', () => {
     });
 
     test('skips requirements.txt when poetry.lock present (same dir preference)', () => {
-        // Both exist in fixtures? If so, poetry wins. If not, just make sure npm-lock is returned.
         const found = detect(FIXTURES, { recursive: false });
         const pypiFiles = found.filter((f) => f.ecosystem === 'pypi');
-        // If requirements.txt is in fixtures, it should not be returned if poetry.lock is there too
-        // (we only have package-lock and Cargo in fixtures, so just assert no duplicate ecosystems)
         const ecosystems = pypiFiles.map((f) => f.ecosystem);
         const unique = [...new Set(ecosystems)];
         assert.equal(ecosystems.length, unique.length, 'duplicate ecosystem entries returned');
+    });
+
+    test('detects pnpm-lock.yaml', () => {
+        const found = detect(FIXTURES, { recursive: false });
+        // pnpm-lock.yaml is in fixtures but package-lock.json is preferred
+        // Both exist → package-lock.json wins. pnpm should not appear.
+        const npmFiles = found.filter((f) => f.ecosystem === 'npm');
+        assert.equal(npmFiles.length, 1, 'should return exactly one npm lock file');
+        assert.equal(npmFiles[0].type, 'npm-lock', 'package-lock.json should win over pnpm-lock.yaml');
+    });
+
+    test('detects pom.xml', () => {
+        const found = detect(FIXTURES, { recursive: false });
+        const maven = found.find((f) => f.type === 'maven-pom');
+        assert.ok(maven, 'pom.xml should be detected');
+    });
+});
+
+describe('pnpm parser', () => {
+    test('parses pnpm-lock.yaml v6 and returns all packages', () => {
+        const comps = parsePnpmLock(path.join(FIXTURES, 'pnpm-lock.yaml'));
+        assert.ok(comps.length >= 4, `expected >=4 components, got ${comps.length}`);
+    });
+
+    test('all components have valid npm purls', () => {
+        const comps = parsePnpmLock(path.join(FIXTURES, 'pnpm-lock.yaml'));
+        for (const c of comps) {
+            assert.match(c.purl, /^pkg:npm\/.+@.+$/, `invalid purl: ${c.purl}`);
+        }
+    });
+
+    test('jest is marked as dev scope', () => {
+        const comps = parsePnpmLock(path.join(FIXTURES, 'pnpm-lock.yaml'));
+        const jest = comps.find((c) => c.name === 'jest');
+        assert.ok(jest, 'jest not found');
+        assert.equal(jest.scope, 'dev');
+    });
+
+    test('transitive dep captured (mime-types via accepts)', () => {
+        const comps = parsePnpmLock(path.join(FIXTURES, 'pnpm-lock.yaml'));
+        const mime = comps.find((c) => c.name === 'mime-types');
+        assert.ok(mime, 'mime-types (transitive) not found');
+    });
+
+    test('dependency graph: express depends on accepts', () => {
+        const comps = parsePnpmLock(path.join(FIXTURES, 'pnpm-lock.yaml'));
+        const express = comps.find((c) => c.name === 'express');
+        assert.ok(express, 'express not found');
+        assert.ok(express.dependsOn.some((p) => p.includes('accepts')),
+            'express.dependsOn missing accepts');
+    });
+
+    test('integrity hash parsed to SHA-512', () => {
+        const comps = parsePnpmLock(path.join(FIXTURES, 'pnpm-lock.yaml'));
+        const express = comps.find((c) => c.name === 'express');
+        assert.ok(express.hashes.length > 0, 'no hashes on express');
+        assert.equal(express.hashes[0].alg, 'SHA-512');
+    });
+});
+
+describe('maven parser', () => {
+    test('parses pom.xml and returns direct dependencies', () => {
+        const comps = parsePomXml(path.join(FIXTURES, 'pom.xml'));
+        assert.ok(comps.length >= 4, `expected >=4 components, got ${comps.length}`);
+    });
+
+    test('all components have valid maven purls', () => {
+        const comps = parsePomXml(path.join(FIXTURES, 'pom.xml'));
+        for (const c of comps) {
+            assert.match(c.purl, /^pkg:maven\/.+@.+$/, `invalid purl: ${c.purl}`);
+        }
+    });
+
+    test('test-scoped deps marked as dev', () => {
+        const comps = parsePomXml(path.join(FIXTURES, 'pom.xml'));
+        const junit = comps.find((c) => c.name.includes('junit-jupiter'));
+        assert.ok(junit, 'junit-jupiter not found');
+        assert.equal(junit.scope, 'dev');
+    });
+
+    test('resolves ${property} version variables', () => {
+        const comps = parsePomXml(path.join(FIXTURES, 'pom.xml'));
+        const spring = comps.find((c) => c.name === 'org.springframework/spring-core');
+        assert.ok(spring, 'spring-core not found');
+        assert.equal(spring.version, '5.3.30', 'property ${spring.version} not resolved');
+    });
+
+    test('log4j-core is present with correct version', () => {
+        const comps = parsePomXml(path.join(FIXTURES, 'pom.xml'));
+        const log4j = comps.find((c) => c.name === 'org.apache.logging.log4j/log4j-core');
+        assert.ok(log4j, 'log4j-core not found');
+        assert.equal(log4j.version, '2.20.0');
     });
 });
