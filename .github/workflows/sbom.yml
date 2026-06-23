@@ -1,0 +1,28 @@
+name: SBOM
+
+on:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: '0 3 * * 1'   # weekly — catch newly-disclosed CVEs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: Generate & ingest SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PackrAI
+        uses: RunTimeAdmin/PACKRAI@v1
+        with:
+          format: both
+          output-dir: sbom
+          fail-on-critical: false
+          upload-artifact: true
+          api-url: ${{ vars.PACKRAI_API_URL }}
+          api-key: ${{ secrets.PACKRAI_API_KEY }}
