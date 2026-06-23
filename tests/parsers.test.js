@@ -9,9 +9,11 @@ const { parsePnpmLock }    = require('../src/parsers/pnpm');
 const { parsePomXml }        = require('../src/parsers/maven');
 const { parseGradleLock }    = require('../src/parsers/gradle');
 const { parsePackagesLock }  = require('../src/parsers/dotnet');
-const { parseGemfileLock }   = require('../src/parsers/ruby');
-const { parseComposerLock }  = require('../src/parsers/php');
-const { detect }             = require('../src/parsers/detect');
+const { parseGemfileLock }          = require('../src/parsers/ruby');
+const { parseComposerLock }         = require('../src/parsers/php');
+const { parseSwiftPackageResolved } = require('../src/parsers/swift');
+const { parsePubspecLock }          = require('../src/parsers/dart');
+const { detect }                    = require('../src/parsers/detect');
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 
@@ -410,5 +412,81 @@ describe('PHP parser', () => {
             assert.ok(!c.dependsOn.some(p => /^pkg:composer\/php@/.test(p)),
                 'php pseudo-package purl should not appear in dependsOn');
         }
+    });
+});
+
+describe('Swift Package.resolved parser', () => {
+    test('parses 3 versioned pins (excludes branch-only pin)', () => {
+        const comps = parseSwiftPackageResolved(path.join(FIXTURES, 'Package.resolved'));
+        assert.equal(comps.length, 3, `expected 3, got ${comps.length}`);
+    });
+
+    test('purls use pkg:swift/ with host-qualified name', () => {
+        const comps = parseSwiftPackageResolved(path.join(FIXTURES, 'Package.resolved'));
+        for (const c of comps) {
+            assert.match(c.purl, /^pkg:swift\/github\.com\/.+@.+$/, `invalid purl: ${c.purl}`);
+        }
+    });
+
+    test('name is host-qualified (github.com/apple/swift-algorithms)', () => {
+        const comps = parseSwiftPackageResolved(path.join(FIXTURES, 'Package.resolved'));
+        const alg = comps.find(c => c.name === 'github.com/apple/swift-algorithms');
+        assert.ok(alg, 'missing swift-algorithms');
+        assert.equal(alg.version, '1.2.0');
+    });
+
+    test('git SHA stored as SHA-1 hash', () => {
+        const comps = parseSwiftPackageResolved(path.join(FIXTURES, 'Package.resolved'));
+        for (const c of comps) {
+            assert.ok(c.hashes.length > 0, `no hash on ${c.name}`);
+            assert.equal(c.hashes[0].alg, 'SHA-1');
+            assert.match(c.hashes[0].content, /^[0-9a-f]{40}$/,
+                `hash not a 40-char hex: ${c.hashes[0].content}`);
+        }
+    });
+
+    test('branch-pinned entry skipped (no version)', () => {
+        const comps = parseSwiftPackageResolved(path.join(FIXTURES, 'Package.resolved'));
+        assert.ok(!comps.find(c => c.name.includes('branch-pinned')),
+            'branch-pinned entry should be excluded');
+    });
+});
+
+describe('Dart pubspec.lock parser', () => {
+    test('parses hosted packages (excludes sdk source)', () => {
+        const comps = parsePubspecLock(path.join(FIXTURES, 'pubspec.lock'));
+        // flutter (source: sdk) must be excluded
+        assert.ok(!comps.find(c => c.name === 'flutter'), 'flutter sdk should be excluded');
+        assert.ok(comps.length >= 4, `expected >=4 comps, got ${comps.length}`);
+    });
+
+    test('purls use pkg:pub/', () => {
+        const comps = parsePubspecLock(path.join(FIXTURES, 'pubspec.lock'));
+        for (const c of comps) {
+            assert.match(c.purl, /^pkg:pub\/.+@.+$/, `invalid purl: ${c.purl}`);
+        }
+    });
+
+    test('dev dependency (flutter_lints) has scope optional', () => {
+        const comps = parsePubspecLock(path.join(FIXTURES, 'pubspec.lock'));
+        const lints = comps.find(c => c.name === 'flutter_lints');
+        assert.ok(lints, 'missing flutter_lints');
+        assert.equal(lints.scope, 'optional');
+    });
+
+    test('runtime dependency (http) has scope required', () => {
+        const comps = parsePubspecLock(path.join(FIXTURES, 'pubspec.lock'));
+        const http = comps.find(c => c.name === 'http');
+        assert.ok(http, 'missing http');
+        assert.equal(http.scope, 'required');
+        assert.equal(http.version, '1.1.0');
+    });
+
+    test('SHA-256 hash stored from description.sha256', () => {
+        const comps = parsePubspecLock(path.join(FIXTURES, 'pubspec.lock'));
+        const http = comps.find(c => c.name === 'http');
+        assert.ok(http.hashes.length > 0, 'no hash on http');
+        assert.equal(http.hashes[0].alg, 'SHA-256');
+        assert.ok(http.hashes[0].content.length > 0, 'empty hash content');
     });
 });

@@ -68,9 +68,9 @@ runs:
       with:
         node-version: '20'
 
-    - name: Install PackrAI
+    - name: Install PackrAI dependencies
       shell: bash
-      run: npm install -g packrai@latest
+      run: npm ci --prefix "$GITHUB_ACTION_PATH" --omit=dev
 
     - name: Generate SBOM
       id: run
@@ -83,10 +83,11 @@ runs:
       run: |
         set -e
 
+        PACKRAI="node $GITHUB_ACTION_PATH/bin/packrai.js"
         ARGS="$SCAN_DIR --format $SCAN_FORMAT --out $SCAN_OUT"
         [ "$SKIP_VULNS" = "true" ] && ARGS="$ARGS --no-vulns"
 
-        packrai $ARGS --json > /tmp/packrai-summary.json
+        $PACKRAI $ARGS --json > /tmp/packrai-summary.json
 
         echo "component-count=$(jq -r '.totalComponents'    /tmp/packrai-summary.json)" >> "$GITHUB_OUTPUT"
         echo "vulnerability-count=$(jq -r '.vulnerabilities' /tmp/packrai-summary.json)" >> "$GITHUB_OUTPUT"

@@ -89,6 +89,8 @@ npm run bench
 | **.NET** | `packages.lock.json` | ✅ Full graph | SHA-512 hashes; requires `RestorePackagesWithLockFile` |
 | **Ruby** | `Gemfile.lock` | ✅ Full graph | SHA-1 checksums via Bundler |
 | **PHP** | `composer.lock` | ✅ Full graph | MIT/BSD licenses from package metadata |
+| **Swift** | `Package.resolved` | ⚠️ Direct only | No dep graph in format; git SHA hashes |
+| **Dart/Flutter** | `pubspec.lock` | ⚠️ Direct only | No dep graph in format; SHA-256 hashes |
 
 Monorepos are supported — PackrAI recurses up to 4 directories deep and deduplicates lock files per directory.
 

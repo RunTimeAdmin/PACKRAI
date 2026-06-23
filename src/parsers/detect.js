@@ -21,8 +21,10 @@ const LOCK_FILE_PATTERNS = [
     { file: 'pom.xml',           type: 'maven-pom',   ecosystem: 'maven'  },
     { file: 'gradle.lockfile',   type: 'gradle-lock', ecosystem: 'maven'  },
     { file: 'packages.lock.json',type: 'nuget-lock',    ecosystem: 'nuget'    },
-    { file: 'Gemfile.lock',      type: 'gemfile-lock',  ecosystem: 'gem'      },
-    { file: 'composer.lock',     type: 'composer-lock', ecosystem: 'composer' },
+    { file: 'Gemfile.lock',       type: 'gemfile-lock',  ecosystem: 'gem'      },
+    { file: 'composer.lock',      type: 'composer-lock', ecosystem: 'composer' },
+    { file: 'Package.resolved',   type: 'swift-lock',    ecosystem: 'swift'    },
+    { file: 'pubspec.lock',       type: 'pubspec-lock',  ecosystem: 'pub'      },
 ];
 
 // Directories to skip when walking
@@ -92,6 +94,8 @@ function deduplicate(lockFiles) {
         const nuget    = group.find((f) => f.type === 'nuget-lock');
         const gem      = group.find((f) => f.type === 'gemfile-lock');
         const composer = group.find((f) => f.type === 'composer-lock');
+        const swift    = group.find((f) => f.type === 'swift-lock');
+        const pub      = group.find((f) => f.type === 'pubspec-lock');
         if (npm)      result.push(npm);
         if (pypi)     result.push(pypi);
         if (cargo)    result.push(cargo);
@@ -100,6 +104,8 @@ function deduplicate(lockFiles) {
         if (nuget)    result.push(nuget);
         if (gem)      result.push(gem);
         if (composer) result.push(composer);
+        if (swift)    result.push(swift);
+        if (pub)      result.push(pub);
     }
     return result;
 }

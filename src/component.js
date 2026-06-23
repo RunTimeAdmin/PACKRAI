@@ -30,6 +30,11 @@ function makePurl(ecosystem, name, version) {
             return `pkg:gem/${name}@${version}`;
         case 'composer':
             return `pkg:composer/${name}@${version}`;
+        case 'swift':
+            // name is host-qualified: "github.com/apple/swift-algorithms"
+            return `pkg:swift/${name}@${version}`;
+        case 'pub':
+            return `pkg:pub/${name}@${version}`;
         default:
             return `pkg:generic/${name}@${version}`;
     }

@@ -8,8 +8,10 @@ const { parsePnpmLock }  = require('./pnpm');
 const { parsePomXml }        = require('./maven');
 const { parseGradleLock }    = require('./gradle');
 const { parsePackagesLock }  = require('./dotnet');
-const { parseGemfileLock }   = require('./ruby');
-const { parseComposerLock }  = require('./php');
+const { parseGemfileLock }          = require('./ruby');
+const { parseComposerLock }         = require('./php');
+const { parseSwiftPackageResolved } = require('./swift');
+const { parsePubspecLock }          = require('./dart');
 const path = require('path');
 
 /**
@@ -32,6 +34,8 @@ function parseLockFile(lockFile) {
         case 'nuget-lock':    return parsePackagesLock(lockFile.path);
         case 'gemfile-lock':  return parseGemfileLock(lockFile.path);
         case 'composer-lock': return parseComposerLock(lockFile.path);
+        case 'swift-lock':    return parseSwiftPackageResolved(lockFile.path);
+        case 'pubspec-lock':  return parsePubspecLock(lockFile.path);
         default:
             console.warn(`[packrai] Unknown lock file type: ${lockFile.type}`);
             return [];
