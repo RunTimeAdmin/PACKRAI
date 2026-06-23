@@ -53,7 +53,14 @@ program
 
         try {
             // ── Resolve source: GitHub URL/shorthand or local path ──────────
-            if (isGitHubTarget(source)) {
+            // Local check comes FIRST — a path like "tests/fixtures" must not
+            // be misidentified as an owner/repo GitHub shorthand.
+            const isLocal = source.startsWith('.')
+                || source.startsWith('/')
+                || path.isAbsolute(source)
+                || fs.existsSync(source);
+
+            if (!isLocal && isGitHubTarget(source)) {
                 const target = parseGitHubTarget(source);
                 const token  = opts.token || process.env.GITHUB_TOKEN;
 

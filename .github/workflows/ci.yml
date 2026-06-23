@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node: ['18', '20', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+
+  cli-smoke:
+    name: CLI smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Scan fixture directory
+        run: |
+          node bin/packrai.js ./tests/fixtures --no-vulns --no-licenses --json --out /tmp/packrai-out
+          test -f /tmp/packrai-out/bom.cyclonedx.json
+          test -f /tmp/packrai-out/bom.spdx.json
+          echo "CycloneDX and SPDX files generated successfully"
+
+      - name: Verify component count
+        run: |
+          COUNT=$(node -e "const f=require('/tmp/packrai-out/bom.cyclonedx.json'); console.log(f.components.length)")
+          echo "Component count: $COUNT"
+          [ "$COUNT" -gt 10 ] || (echo "Expected >10 components, got $COUNT" && exit 1)

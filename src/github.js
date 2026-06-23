@@ -49,9 +49,17 @@ function isGitHubTarget(str) {
 function cloneRepo(target, opts = {}) {
     const { owner, repo, ref } = target;
 
-    const remoteUrl = opts.token
-        ? `https://${opts.token}@github.com/${owner}/${repo}.git`
-        : `https://github.com/${owner}/${repo}.git`;
+    // Token is passed via GIT_CONFIG env vars — never embedded in the URL or
+    // command arguments where it could leak in process lists or error messages.
+    const remoteUrl = `https://github.com/${owner}/${repo}.git`;
+
+    const spawnEnv = { ...process.env };
+    if (opts.token) {
+        const b64 = Buffer.from(`x-access-token:${opts.token}`).toString('base64');
+        spawnEnv.GIT_CONFIG_COUNT = '1';
+        spawnEnv.GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraHeader';
+        spawnEnv.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${b64}`;
+    }
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `packrai-${repo}-`));
 
@@ -67,6 +75,7 @@ function cloneRepo(target, opts = {}) {
         stdio: ['ignore', 'pipe', 'pipe'],
         encoding: 'utf8',
         timeout: 120_000,
+        env: spawnEnv,
     });
 
     if (result.status !== 0) {

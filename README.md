@@ -315,7 +315,7 @@ packrai/
 ├── Dockerfile              Multi-stage API server image
 ├── docker-compose.yml      API + Postgres stack
 ├── tests/
-│   ├── parsers.test.js     Parser unit tests (56 tests)
+│   ├── parsers.test.js     Parser unit tests (66 tests)
 │   └── fixtures/           Sample lock files for testing
 ├── examples/
 │   └── github-workflow.yml Copy-paste GitHub Actions workflow

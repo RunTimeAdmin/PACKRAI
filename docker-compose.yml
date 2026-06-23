@@ -21,6 +21,7 @@ services:
     environment:
       DATABASE_URL: postgres://packrai:${POSTGRES_PASSWORD:-changeme}@db:5432/packrai
       ADMIN_KEY:    ${ADMIN_KEY:?ADMIN_KEY must be set in .env}
+      HMAC_SECRET:  ${HMAC_SECRET:?HMAC_SECRET must be set in .env}
       PORT:         3080
     depends_on:
       db:
