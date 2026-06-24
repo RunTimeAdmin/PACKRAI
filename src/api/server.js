@@ -448,20 +448,60 @@ app.get('/api/v1/apps', requireScope('sbom:read'), async (req, res) => {
     try {
         const { rows } = await db.query(
             `SELECT a.id, a.name, a.repo_url,
-                    COUNT(s.id)      AS sbom_count,
-                    ls.created_at    AS last_scanned,
-                    ls.critical_count
+                    COUNT(s.id)             AS sbom_count,
+                    ls.created_at           AS last_scanned,
+                    ls.critical_count,
+                    ls.vulnerability_count,
+                    ls.component_count,
+                    ls.quality_score,
+                    ls.ecosystems
              FROM applications a
              LEFT JOIN sboms s             ON s.app_id = a.id
              LEFT JOIN app_latest_sboms ls ON ls.app_id = a.id
              WHERE a.org_id = $1
-             GROUP BY a.id, a.name, a.repo_url, ls.created_at, ls.critical_count
-             ORDER BY a.name`,
+             GROUP BY a.id, a.name, a.repo_url, ls.created_at, ls.critical_count,
+                      ls.vulnerability_count, ls.component_count, ls.quality_score, ls.ecosystems
+             ORDER BY ls.critical_count DESC NULLS LAST, a.name`,
             [req.org.id]
         );
         res.json({ apps: rows });
     } catch (err) {
         console.error('[apps]', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// GET /api/v1/apps/:name/vulns
+// Vulnerability list for the latest SBOM of an app, excluding VEX not_affected.
+app.get('/api/v1/apps/:name/vulns', requireScope('sbom:read'), async (req, res) => {
+    try {
+        const appRes = await db.query(
+            `SELECT a.id FROM applications a
+             WHERE a.org_id = $1 AND a.name = $2`,
+            [req.org.id, req.params.name]
+        );
+        if (!appRes.rows.length) return res.status(404).json({ error: 'App not found' });
+        const appId = appRes.rows[0].id;
+
+        const { rows } = await db.query(
+            `SELECT v.osv_id, v.cve_id, v.severity, v.cvss_score,
+                    v.fixed_version, v.title, v.kev,
+                    c.id AS component_id, c.name AS component,
+                    c.version AS component_version, c.ecosystem, c.purl
+             FROM app_latest_sboms ls
+             JOIN sbom_components sc     ON sc.sbom_id = ls.sbom_id
+             JOIN components c           ON c.id = sc.component_id
+             JOIN vulnerabilities v      ON v.component_id = c.id AND v.org_id = $1
+             LEFT JOIN vex_statements vx ON vx.component_id = c.id
+                                        AND vx.osv_id = v.osv_id AND vx.org_id = $1
+             WHERE ls.app_id = $2
+               AND (vx.status IS NULL OR vx.status != 'not_affected')
+             ORDER BY v.cvss_score DESC NULLS LAST, v.severity, c.name`,
+            [req.org.id, appId]
+        );
+        res.json({ vulnerabilities: rows });
+    } catch (err) {
+        console.error('[apps/vulns]', err.message);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
