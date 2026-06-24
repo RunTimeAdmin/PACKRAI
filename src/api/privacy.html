@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — PackrAI</title>
+<style>
+  :root { --bg:#0d1117; --surface:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e; --accent:#3fb950; --blue:#58a6ff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:15px; line-height:1.7; }
+  header { border-bottom:1px solid var(--border); padding:14px 24px; display:flex; align-items:center; justify-content:space-between; }
+  .logo { font-weight:700; font-size:18px; letter-spacing:-0.3px; text-decoration:none; color:var(--text); }
+  .logo span { color:var(--accent); }
+  .content { max-width:760px; margin:0 auto; padding:48px 24px 80px; }
+  .eyebrow { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:10px; }
+  h1 { font-size:28px; font-weight:700; margin-bottom:6px; }
+  .updated { color:var(--muted); font-size:13px; margin-bottom:40px; }
+  h2 { font-size:17px; font-weight:600; margin:36px 0 10px; }
+  p { color:#cdd5de; margin-bottom:14px; }
+  ul { color:#cdd5de; padding-left:22px; margin-bottom:14px; }
+  ul li { margin-bottom:6px; }
+  table { width:100%; border-collapse:collapse; margin-bottom:20px; font-size:14px; }
+  th { text-align:left; padding:9px 14px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); border-bottom:2px solid var(--border); }
+  td { padding:9px 14px; border-bottom:1px solid var(--border); color:#cdd5de; vertical-align:top; }
+  a { color:var(--blue); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .footer { border-top:1px solid var(--border); padding:24px; text-align:center; font-size:13px; color:var(--muted); }
+  .footer a { color:var(--muted); margin:0 10px; }
+  .footer a:hover { color:var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="/">Packr<span>AI</span></a>
+  <a href="/dashboard" style="color:var(--muted);font-size:13px;text-decoration:none">Dashboard →</a>
+</header>
+
+<div class="content">
+  <div class="eyebrow">Legal</div>
+  <h1>Privacy Policy</h1>
+  <div class="updated">Last updated: June 2026</div>
+
+  <p>This Privacy Policy explains how RunTimeAdmin ("we", "us", "our") collects, uses, and protects information when you use PackrAI ("Service"). We are committed to handling your data responsibly.</p>
+
+  <h2>1. Information We Collect</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Why we collect it</th><th>Retention</th></tr></thead>
+    <tbody>
+      <tr><td>Email address</td><td>Account creation, key delivery, service notifications</td><td>Until account deletion</td></tr>
+      <tr><td>Organisation name</td><td>Identify your account in the dashboard</td><td>Until account deletion</td></tr>
+      <tr><td>SBOM data (components, versions, PURLs)</td><td>Core service functionality — vulnerability matching, diff, reporting</td><td>Until app or account deleted</td></tr>
+      <tr><td>Vulnerability data</td><td>Risk reporting and alerting</td><td>Until app or account deleted</td></tr>
+      <tr><td>API key hashes</td><td>Authentication (plaintext keys are never stored)</td><td>Until key revoked or account deleted</td></tr>
+      <tr><td>API key last-used timestamps</td><td>Security monitoring, unused key cleanup</td><td>Until key revoked</td></tr>
+      <tr><td>Server logs (IP address, request path, timestamp)</td><td>Security, debugging, abuse prevention</td><td>30 days</td></tr>
+    </tbody>
+  </table>
+
+  <p>We do not collect names, payment details (handled by Stripe directly), or browsing behaviour beyond what is logged at the server level.</p>
+
+  <h2>2. How We Use Your Information</h2>
+  <ul>
+    <li>To provide and operate the Service</li>
+    <li>To deliver your API key and service notifications by email</li>
+    <li>To detect and prevent abuse, fraud, and security incidents</li>
+    <li>To improve the Service based on aggregate usage patterns</li>
+  </ul>
+  <p>We do not use your SBOM data to train AI models. We do not sell your data to third parties.</p>
+
+  <h2>3. Third-Party Services</h2>
+  <table>
+    <thead><tr><th>Service</th><th>Purpose</th><th>Data shared</th></tr></thead>
+    <tbody>
+      <tr><td>Resend</td><td>Transactional email delivery</td><td>Email address, email content</td></tr>
+      <tr><td>DeepSeek</td><td>AI-generated vulnerability explanations (opt-in per request)</td><td>Vulnerability and component names only</td></tr>
+      <tr><td>OSV.dev (Google)</td><td>Open-source vulnerability data enrichment</td><td>Component PURLs</td></tr>
+      <tr><td>CISA KEV</td><td>Known Exploited Vulnerability flag enrichment</td><td>None — we pull a public feed</td></tr>
+      <tr><td>Stripe</td><td>Payment processing (when billing is enabled)</td><td>Email, billing details</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Data Security</h2>
+  <p>API keys are stored as HMAC-SHA256 hashes — plaintext keys are shown once on creation and never stored. All data is transmitted over TLS. Access to production systems is restricted to authorised personnel only.</p>
+
+  <h2>5. Your Rights</h2>
+  <p>You have the right to:</p>
+  <ul>
+    <li><strong>Access</strong> — request a copy of the data we hold about your organisation</li>
+    <li><strong>Correction</strong> — request correction of inaccurate data</li>
+    <li><strong>Deletion</strong> — request deletion of your account and all associated data</li>
+    <li><strong>Portability</strong> — export your SBOM data in CycloneDX or SPDX format at any time from the dashboard</li>
+  </ul>
+  <p>To exercise any of these rights, email <a href="mailto:privacy@packrai.xyz">privacy@packrai.xyz</a>. We will respond within 30 days.</p>
+
+  <h2>6. Cookies</h2>
+  <p>The Service does not use tracking cookies. The dashboard stores your API key in <code style="font-family:monospace;font-size:13px;color:var(--accent)">localStorage</code> solely to keep you logged in — this data never leaves your browser.</p>
+
+  <h2>7. Children</h2>
+  <p>The Service is not directed at children under 16. We do not knowingly collect data from anyone under 16.</p>
+
+  <h2>8. Changes to This Policy</h2>
+  <p>We may update this policy from time to time. We will notify registered users by email of material changes. The "last updated" date at the top of this page will always reflect the current version.</p>
+
+  <h2>9. Contact</h2>
+  <p>Questions about this policy? Email <a href="mailto:privacy@packrai.xyz">privacy@packrai.xyz</a>.</p>
+</div>
+
+<div class="footer">
+  <a href="/privacy">Privacy Policy</a>
+  <a href="/terms">Terms of Service</a>
+  <a href="/docs">API Docs</a>
+  <a href="/dashboard">Dashboard</a>
+</div>
+</body>
+</html>

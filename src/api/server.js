@@ -245,6 +245,15 @@ app.get('/dashboard', (_req, res) => {
 app.get('/register', (_req, res) => {
     res.sendFile(path.join(__dirname, 'register.html'));
 });
+app.get('/terms', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'terms.html'));
+});
+app.get('/privacy', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'privacy.html'));
+});
+app.get('/docs', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'docs.html'));
+});
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ ok: true }));

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Reference — PackrAI</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+<style>
+  body { margin: 0; background: #0d1117; }
+  .topbar { display: none !important; }
+  .swagger-ui { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .swagger-ui .info .title { color: #e6edf3; }
+  .swagger-ui .info p, .swagger-ui .info li, .swagger-ui .info table td, .swagger-ui .info table th { color: #8b949e; }
+  .swagger-ui .scheme-container { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 0; }
+
+  /* PackrAI header strip */
+  #packrai-header {
+    background: #0d1117;
+    border-bottom: 1px solid #30363d;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #packrai-header .logo { font-weight: 700; font-size: 18px; letter-spacing: -0.3px; color: #e6edf3; text-decoration: none; }
+  #packrai-header .logo span { color: #3fb950; }
+  #packrai-header a.nav { color: #8b949e; font-size: 13px; text-decoration: none; margin-left: 20px; }
+  #packrai-header a.nav:hover { color: #e6edf3; }
+</style>
+</head>
+<body>
+
+<div id="packrai-header">
+  <a class="logo" href="/">Packr<span>AI</span></a>
+  <div>
+    <a class="nav" href="/dashboard">Dashboard</a>
+    <a class="nav" href="/register">Get API key</a>
+  </div>
+</div>
+
+<div id="swagger-ui"></div>
+
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+const spec = {
+  openapi: "3.0.3",
+  info: {
+    title: "PackrAI API",
+    version: "1.0.0",
+    description: `**PackrAI** is a lockfile-first SBOM platform. This API lets you ingest SBOMs, query vulnerabilities, search CVE exposure across your org, and manage API keys.
+
+**Base URL:** \`https://api.packrai.xyz\`
+
+**Authentication:** All \`/api/v1/*\` endpoints (except \`/api/v1/register\`) require a Bearer token:
+\`\`\`
+Authorization: Bearer <your-api-key>
+\`\`\`
+
+**Scopes:**
+| Scope | Access |
+|---|---|
+| \`sbom:ingest\` | POST /api/v1/ingest |
+| \`sbom:read\` | GET endpoints — apps, search, report, vulns, components, diff |
+| \`org:admin\` | All of the above + key management |
+
+Get an API key at [api.packrai.xyz/register](https://api.packrai.xyz/register).`
+  },
+  servers: [{ url: "https://api.packrai.xyz", description: "Production" }],
+  components: {
+    securitySchemes: {
+      bearerAuth: { type: "http", scheme: "bearer", description: "API key from /register or dashboard Keys tab" }
+    },
+    schemas: {
+      App: {
+        type: "object",
+        properties: {
+          id:                  { type: "string", format: "uuid" },
+          name:                { type: "string", example: "acme/api" },
+          repo_url:            { type: "string", nullable: true },
+          sbom_count:          { type: "integer" },
+          last_scanned:        { type: "string", format: "date-time", nullable: true },
+          critical_count:      { type: "integer" },
+          vulnerability_count: { type: "integer" },
+          component_count:     { type: "integer" },
+          quality_score:       { type: "number", nullable: true },
+          ecosystems:          { type: "array", items: { type: "string" }, nullable: true }
+        }
+      },
+      Vulnerability: {
+        type: "object",
+        properties: {
+          osv_id:            { type: "string", example: "GHSA-jfh8-c2jp-hdp8" },
+          cve_id:            { type: "string", example: "CVE-2021-44228", nullable: true },
+          severity:          { type: "string", enum: ["CRITICAL","HIGH","MEDIUM","LOW"], nullable: true },
+          cvss_score:        { type: "number", nullable: true },
+          fixed_version:     { type: "string", nullable: true },
+          title:             { type: "string", nullable: true },
+          kev:               { type: "boolean", description: "True if on CISA Known Exploited Vulnerabilities list" },
+          component:         { type: "string" },
+          component_version: { type: "string" },
+          ecosystem:         { type: "string" },
+          purl:              { type: "string" }
+        }
+      },
+      Component: {
+        type: "object",
+        properties: {
+          name:       { type: "string" },
+          version:    { type: "string" },
+          ecosystem:  { type: "string" },
+          purl:       { type: "string" },
+          vuln_count: { type: "integer" },
+          max_severity: { type: "string", nullable: true }
+        }
+      },
+      ApiKey: {
+        type: "object",
+        properties: {
+          id:           { type: "string", format: "uuid" },
+          name:         { type: "string" },
+          scopes:       { type: "array", items: { type: "string" } },
+          created_at:   { type: "string", format: "date-time" },
+          last_used_at: { type: "string", format: "date-time", nullable: true }
+        }
+      },
+      Error: {
+        type: "object",
+        properties: { error: { type: "string" } }
+      }
+    }
+  },
+  security: [{ bearerAuth: [] }],
+  tags: [
+    { name: "Auth",       description: "Registration and identity" },
+    { name: "Apps",       description: "Application inventory" },
+    { name: "SBOMs",      description: "Ingest and retrieve SBOMs" },
+    { name: "Vulns",      description: "Vulnerability queries" },
+    { name: "Search",     description: "Cross-org CVE exposure search" },
+    { name: "Report",     description: "Org-wide risk summary" },
+    { name: "Keys",       description: "API key management (org:admin)" }
+  ],
+  paths: {
+
+    "/api/v1/register": {
+      post: {
+        tags: ["Auth"],
+        summary: "Create a new org and receive an API key by email",
+        security: [],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object", required: ["email","orgName"],
+            properties: {
+              email:   { type: "string", format: "email", example: "you@example.com" },
+              orgName: { type: "string", example: "acme-corp" }
+            }
+          }}}
+        },
+        responses: {
+          "200": { description: "Registration accepted — API key sent by email",
+            content: { "application/json": { schema: { type: "object", properties: { message: { type: "string" } } } } } },
+          "400": { description: "Validation error", content: { "application/json": { schema: { "$ref": "#/components/schemas/Error" } } } },
+          "429": { description: "Rate limit exceeded (5 per hour per IP)" }
+        }
+      }
+    },
+
+    "/api/v1/me": {
+      get: {
+        tags: ["Auth"],
+        summary: "Return the authenticated org name and key scopes",
+        responses: {
+          "200": { description: "Identity",
+            content: { "application/json": { schema: { type: "object", properties: {
+              org:    { type: "string" },
+              scopes: { type: "array", items: { type: "string" } }
+            }}}}
+          },
+          "401": { description: "Missing or invalid API key" }
+        }
+      }
+    },
+
+    "/api/v1/ingest": {
+      post: {
+        tags: ["SBOMs"],
+        summary: "Ingest a CycloneDX SBOM for an app",
+        description: "Stores the SBOM, normalises components, and triggers OSV vulnerability enrichment. Use the PackrAI CLI or GitHub Action rather than calling this directly.",
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            required: ["app","cyclonedx"],
+            properties: {
+              app:       { type: "string", example: "acme/api", description: "Unique app identifier within the org" },
+              version:   { type: "string", example: "1.4.2" },
+              commit:    { type: "string", example: "a1b2c3d" },
+              branch:    { type: "string", example: "main" },
+              cyclonedx: { type: "object", description: "CycloneDX 1.4–1.6 document" },
+              spdx:      { type: "object", description: "SPDX 2.x document (optional)" },
+              stats:     { type: "object", description: "Pre-computed stats from the CLI (optional)" }
+            }
+          }}}
+        },
+        responses: {
+          "201": { description: "SBOM ingested successfully",
+            content: { "application/json": { schema: { type: "object", properties: {
+              sbomId:      { type: "string", format: "uuid" },
+              appId:       { type: "string", format: "uuid" },
+              components:  { type: "integer" },
+              newVulns:    { type: "integer" }
+            }}}}
+          },
+          "400": { description: "Invalid payload" },
+          "401": { description: "Unauthorised" },
+          "403": { description: "sbom:ingest scope required" }
+        }
+      }
+    },
+
+    "/api/v1/apps": {
+      get: {
+        tags: ["Apps"],
+        summary: "List all applications for the org",
+        description: "Returns each app's latest scan summary — component count, vuln count, critical count, quality score, and ecosystems. Sorted by critical count descending.",
+        responses: {
+          "200": {
+            description: "App list",
+            content: { "application/json": { schema: { type: "object", properties: {
+              apps: { type: "array", items: { "$ref": "#/components/schemas/App" } }
+            }}}}
+          },
+          "401": { description: "Unauthorised" }
+        }
+      }
+    },
+
+    "/api/v1/apps/{name}/sbom": {
+      get: {
+        tags: ["SBOMs"],
+        summary: "Get latest SBOM metadata for an app",
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" }, example: "acme/api" }],
+        responses: {
+          "200": { description: "SBOM metadata (no component list — use /components)",
+            content: { "application/json": { schema: { type: "object", properties: {
+              id:                  { type: "string", format: "uuid" },
+              version:             { type: "string", nullable: true },
+              commit_sha:          { type: "string", nullable: true },
+              branch:              { type: "string", nullable: true },
+              component_count:     { type: "integer" },
+              vulnerability_count: { type: "integer" },
+              critical_count:      { type: "integer" },
+              quality_score:       { type: "number", nullable: true },
+              ecosystems:          { type: "array", items: { type: "string" }, nullable: true },
+              elapsed_ms:          { type: "integer", nullable: true },
+              created_at:          { type: "string", format: "date-time" }
+            }}}}
+          },
+          "404": { description: "App not found" }
+        }
+      }
+    },
+
+    "/api/v1/apps/{name}/sbom/download": {
+      get: {
+        tags: ["SBOMs"],
+        summary: "Download the latest SBOM in CycloneDX or SPDX format",
+        parameters: [
+          { name: "name", in: "path", required: true, schema: { type: "string" } },
+          { name: "format", in: "query", schema: { type: "string", enum: ["cyclonedx","spdx"], default: "cyclonedx" } }
+        ],
+        responses: {
+          "200": { description: "SBOM JSON file download",
+            content: {
+              "application/vnd.cyclonedx+json": { schema: { type: "object" } },
+              "application/json":               { schema: { type: "object" } }
+            }
+          },
+          "404": { description: "App not found or format not available" }
+        }
+      }
+    },
+
+    "/api/v1/apps/{name}/vulns": {
+      get: {
+        tags: ["Vulns"],
+        summary: "List vulnerabilities for an app's latest SBOM",
+        description: "Returns vulnerabilities from the latest SBOM, excluding any with VEX status `not_affected`. Ordered by CVSS score descending.",
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Vulnerability list",
+            content: { "application/json": { schema: { type: "object", properties: {
+              vulnerabilities: { type: "array", items: { "$ref": "#/components/schemas/Vulnerability" } }
+            }}}}
+          },
+          "404": { description: "App not found" }
+        }
+      }
+    },
+
+    "/api/v1/apps/{name}/components": {
+      get: {
+        tags: ["Apps"],
+        summary: "List all components in an app's latest SBOM",
+        description: "Returns every component with its vuln count and max severity. Components with vulnerabilities appear first.",
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Component list",
+            content: { "application/json": { schema: { type: "object", properties: {
+              components: { type: "array", items: { "$ref": "#/components/schemas/Component" } }
+            }}}}
+          },
+          "404": { description: "App not found" }
+        }
+      }
+    },
+
+    "/api/v1/apps/{name}/diff": {
+      get: {
+        tags: ["SBOMs"],
+        summary: "Diff the two most recent SBOMs for an app",
+        description: "Returns added/removed/updated components and new/resolved vulnerabilities between the last two ingests.",
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "SBOM diff",
+            content: { "application/json": { schema: { type: "object", properties: {
+              from:    { type: "object", properties: { id: { type: "string" }, version: { type: "string" }, created_at: { type: "string" } } },
+              to:      { type: "object", properties: { id: { type: "string" }, version: { type: "string" }, created_at: { type: "string" } } },
+              summary: { type: "object", properties: {
+                added: { type: "integer" }, removed: { type: "integer" }, updated: { type: "integer" },
+                newVulnerabilities: { type: "integer" }, resolvedVulnerabilities: { type: "integer" }
+              }},
+              added:               { type: "array", items: { type: "object" } },
+              removed:             { type: "array", items: { type: "object" } },
+              updated:             { type: "array", items: { type: "object" } },
+              newVulnerabilities:  { type: "array", items: { type: "object" } },
+              resolvedVulnerabilities: { type: "array", items: { type: "object" } }
+            }}}}
+          },
+          "404": { description: "App not found" },
+          "409": { description: "Fewer than two SBOMs exist for this app" }
+        }
+      }
+    },
+
+    "/api/v1/apps/{name}/explain": {
+      post: {
+        tags: ["Vulns"],
+        summary: "AI-generated remediation advice for an app's vulnerabilities",
+        description: "Sends the app's active vulnerabilities to DeepSeek-V3 and returns a prioritised remediation plan. Requires `DEEPSEEK_API_KEY` on the server.",
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "AI explanation",
+            content: { "application/json": { schema: { type: "object", properties: {
+              explanation:       { type: "string" },
+              vulnerabilityCount: { type: "integer" }
+            }}}}
+          },
+          "404": { description: "App not found" },
+          "501": { description: "DEEPSEEK_API_KEY not configured on server" }
+        }
+      }
+    },
+
+    "/api/v1/search": {
+      get: {
+        tags: ["Search"],
+        summary: "Search CVE / OSV exposure across all apps in the org",
+        parameters: [
+          { name: "cve", in: "query", schema: { type: "string" }, example: "CVE-2021-44228", description: "CVE or GHSA ID" },
+          { name: "osv", in: "query", schema: { type: "string" }, description: "OSV ID (alias for cve param)" }
+        ],
+        responses: {
+          "200": { description: "Search results",
+            content: { "application/json": { schema: { type: "object", properties: {
+              exposedApps: { type: "integer" },
+              results: { type: "array", items: { type: "object", properties: {
+                app:               { type: "string" },
+                component:         { type: "string" },
+                component_version: { type: "string" },
+                severity:          { type: "string" },
+                cvss_score:        { type: "number", nullable: true },
+                fixed_version:     { type: "string", nullable: true },
+                vex_status:        { type: "string", nullable: true }
+              }}}
+            }}}}
+          },
+          "400": { description: "Provide ?cve= or ?osv= parameter" }
+        }
+      }
+    },
+
+    "/api/v1/report": {
+      get: {
+        tags: ["Report"],
+        summary: "Org-wide risk summary and top vulnerabilities",
+        responses: {
+          "200": { description: "Risk report",
+            content: { "application/json": { schema: { type: "object", properties: {
+              summary: { type: "object", properties: {
+                total_apps:        { type: "integer" },
+                unique_components: { type: "integer" },
+                critical:          { type: "integer" },
+                high:              { type: "integer" }
+              }},
+              topVulnerabilities: { type: "array", items: { type: "object", properties: {
+                osv_id:       { type: "string" },
+                cve_id:       { type: "string", nullable: true },
+                severity:     { type: "string" },
+                cvss_score:   { type: "number", nullable: true },
+                kev:          { type: "boolean" },
+                apps_affected:{ type: "integer" },
+                title:        { type: "string", nullable: true }
+              }}}
+            }}}}
+          }
+        }
+      }
+    },
+
+    "/api/v1/keys": {
+      get: {
+        tags: ["Keys"],
+        summary: "List all active API keys for the org",
+        description: "Requires `org:admin` scope. Plaintext keys are never returned.",
+        responses: {
+          "200": { description: "Key list",
+            content: { "application/json": { schema: { type: "object", properties: {
+              keys: { type: "array", items: { "$ref": "#/components/schemas/ApiKey" } }
+            }}}}
+          },
+          "403": { description: "org:admin scope required" }
+        }
+      },
+      post: {
+        tags: ["Keys"],
+        summary: "Create a new scoped API key",
+        description: "Requires `org:admin` scope. The plaintext key is returned **once** — store it immediately.",
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object", required: ["name","scopes"],
+            properties: {
+              name:   { type: "string", example: "ci-pipeline" },
+              scopes: { type: "array", items: { type: "string", enum: ["sbom:ingest","sbom:read","org:admin"] }, example: ["sbom:ingest"] }
+            }
+          }}}
+        },
+        responses: {
+          "201": { description: "Key created — plaintext shown once",
+            content: { "application/json": { schema: {
+              allOf: [{ "$ref": "#/components/schemas/ApiKey" }, { type: "object", properties: { api_key: { type: "string" } } }]
+            }}}
+          },
+          "400": { description: "Validation error" },
+          "403": { description: "org:admin scope required" }
+        }
+      }
+    },
+
+    "/api/v1/keys/{id}": {
+      delete: {
+        tags: ["Keys"],
+        summary: "Revoke an API key",
+        description: "Requires `org:admin` scope. Revocation is immediate and permanent.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "200": { description: "Key revoked", content: { "application/json": { schema: { type: "object", properties: { revoked: { type: "boolean" } } } } } },
+          "403": { description: "org:admin scope required" },
+          "404": { description: "Key not found" }
+        }
+      }
+    }
+  }
+};
+
+SwaggerUIBundle({
+  spec,
+  dom_id: '#swagger-ui',
+  presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+  layout: 'BaseLayout',
+  deepLinking: true,
+  defaultModelsExpandDepth: 1,
+  defaultModelExpandDepth: 1,
+  displayRequestDuration: true,
+  tryItOutEnabled: true,
+});
+</script>
+</body>
+</html>
