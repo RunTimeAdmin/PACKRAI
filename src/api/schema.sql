@@ -5,6 +5,7 @@
 CREATE TABLE organizations (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     name       TEXT        NOT NULL,
+    email      TEXT        UNIQUE,
     -- Stores HMAC-SHA256(plaintext_key, HMAC_SECRET) — plaintext never persisted.
     -- Legacy org:admin key; prefer api_keys table for new issuance.
     api_key    TEXT        UNIQUE NOT NULL,

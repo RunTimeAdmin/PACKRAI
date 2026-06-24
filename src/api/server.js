@@ -74,8 +74,31 @@ const ingestLimiter = rateLimit({
     legacyHeaders: false,
     message: { error: 'Ingest rate limit exceeded' },
 });
+const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many registration attempts — try again in an hour' },
+});
 
 app.use('/api/', apiLimiter);
+
+// ── Email helper (Resend) ─────────────────────────────────────────────────────
+async function sendEmail({ to, subject, html }) {
+    const key = process.env.RESEND_API_KEY;
+    if (!key) { console.warn('[resend] RESEND_API_KEY not set — skipping email'); return; }
+    const from = process.env.RESEND_FROM || 'PackrAI <noreply@packrai.xyz>';
+    const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to, subject, html }),
+    });
+    if (!r.ok) {
+        const body = await r.text();
+        console.error('[resend] send failed:', r.status, body);
+    }
+}
 
 // ── API key helpers ───────────────────────────────────────────────────────────
 function hashApiKey(key) {
@@ -134,7 +157,8 @@ function requireScope(scope) {
                         hint: `This key has scopes: ${scopes.join(', ')}`,
                     });
                 }
-                req.org = { id: org_id, name: org_name };
+                req.org    = { id: org_id, name: org_name };
+                req.scopes = scopes;
                 maybeUpdateLastUsed(keyHash);
                 return next();
             }
@@ -145,7 +169,8 @@ function requireScope(scope) {
                 [keyHash]
             );
             if (orgRows.length) {
-                req.org = orgRows[0];
+                req.org    = orgRows[0];
+                req.scopes = ['org:admin'];
                 return next();
             }
 
@@ -217,9 +242,84 @@ async function osvEnrichAsync(orgId, cdxComponents, purlToCompId) {
 app.get('/dashboard', (_req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
+app.get('/register', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'register.html'));
+});
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ ok: true }));
+
+// ── Me ────────────────────────────────────────────────────────────────────────
+app.get('/api/v1/me', requireScope('sbom:read'), (req, res) => {
+    res.json({ org: req.org.name, scopes: req.scopes || [] });
+});
+
+// ── Self-service registration ─────────────────────────────────────────────────
+// POST /api/v1/register  body: { email, orgName }
+// Creates a new org and emails the API key via Resend.
+app.post('/api/v1/register', registerLimiter, async (req, res) => {
+    const { email, orgName } = req.body;
+
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return res.status(400).json({ error: 'A valid email address is required' });
+    }
+    if (!orgName || typeof orgName !== 'string' || !orgName.trim()) {
+        return res.status(400).json({ error: 'orgName is required' });
+    }
+    if (orgName.trim().length > 100) {
+        return res.status(400).json({ error: 'orgName must be 100 characters or fewer' });
+    }
+
+    const cleanEmail   = email.trim().toLowerCase();
+    const cleanOrgName = orgName.trim();
+
+    try {
+        // Prevent duplicate email registrations — return success silently to avoid leaking
+        const existing = await db.query(
+            'SELECT id FROM organizations WHERE email = $1',
+            [cleanEmail]
+        );
+        if (existing.rows.length) {
+            return res.json({ message: 'Check your email for your API key.' });
+        }
+
+        const apiKey     = generateApiKey();
+        const apiKeyHash = hashApiKey(apiKey);
+
+        await db.query(
+            'INSERT INTO organizations (name, email, api_key) VALUES ($1, $2, $3)',
+            [cleanOrgName, cleanEmail, apiKeyHash]
+        );
+
+        await sendEmail({
+            to: cleanEmail,
+            subject: 'Your PackrAI API Key',
+            html: `
+<!DOCTYPE html><html><body style="background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px;max-width:560px;margin:0 auto">
+<h1 style="font-size:22px;font-weight:700;margin-bottom:6px">Welcome to <span style="color:#3fb950">PackrAI</span></h1>
+<p style="color:#8b949e;margin-bottom:28px">Your org <strong style="color:#e6edf3">${cleanOrgName}</strong> is ready.</p>
+<p style="margin-bottom:10px;font-weight:600">Your API key</p>
+<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px 20px;font-family:monospace;font-size:13px;word-break:break-all;color:#3fb950;margin-bottom:6px">${apiKey}</div>
+<p style="color:#8b949e;font-size:12px;margin-bottom:28px">⚠ Save this key — it won't be shown again.</p>
+<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">Quick start</h2>
+<pre style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;color:#e6edf3"># Install the CLI
+npm install -g packrai
+
+# Generate your first SBOM and push it
+packrai owner/repo --push --api-key ${apiKey}
+
+# View your dashboard
+open https://api.packrai.xyz/dashboard</pre>
+<p style="margin-top:28px;color:#8b949e;font-size:13px">Need help? Reply to this email or visit <a href="https://packrai.xyz" style="color:#58a6ff">packrai.xyz</a>.</p>
+</body></html>`,
+        });
+
+        res.json({ message: 'Check your email for your API key.' });
+    } catch (err) {
+        console.error('[register]', err.message);
+        res.status(500).json({ error: 'Registration failed — please try again' });
+    }
+});
 
 // ── Ingest ────────────────────────────────────────────────────────────────────
 // POST /api/v1/ingest

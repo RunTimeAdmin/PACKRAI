@@ -205,6 +205,46 @@
     <div id="top-vulns-wrap" class="loading"><span class="spinner"></span>Loading…</div>
   </div>
 
+  <!-- Keys section — only shown for org:admin keys -->
+  <div class="section" id="keys-section" style="display:none">
+    <div class="section-hd">
+      <div class="section-title">API Keys</div>
+      <button class="btn-sm" id="new-key-btn">+ New key</button>
+    </div>
+
+    <!-- Create key form (hidden until + New key clicked) -->
+    <div id="new-key-form" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:180px">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px">Key name</div>
+          <input class="search-input" id="new-key-name" placeholder="e.g. ci-pipeline" style="width:100%" maxlength="80">
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px">Scopes</div>
+          <div style="display:flex;gap:14px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" id="scope-ingest" checked> sbom:ingest</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" id="scope-read" checked> sbom:read</label>
+            <label style="display:flex;align-items:center;gap=6px;cursor:pointer;font-size:13px"><input type="checkbox" id="scope-admin"> org:admin</label>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-sm" id="create-key-btn" style="border-color:var(--accent);color:var(--accent)">Create</button>
+          <button class="btn-sm" id="cancel-key-btn">Cancel</button>
+        </div>
+      </div>
+      <!-- Newly created key — shown once -->
+      <div id="new-key-result" style="display:none;margin-top:16px;background:var(--bg);border:1px solid var(--accent);border-radius:8px;padding:14px 16px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">New key — copy it now, it won't be shown again</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <code id="new-key-value" style="font-family:monospace;font-size:12px;color:var(--accent);word-break:break-all;flex:1"></code>
+          <button class="btn-sm" id="copy-key-btn" style="flex-shrink:0">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="keys-wrap" class="loading"><span class="spinner"></span>Loading…</div>
+  </div>
+
 </div>
 
 <!-- ── Detail screen ─────────────────────────────────────────────────────── -->
@@ -271,6 +311,7 @@
 'use strict';
 const API = '';
 let apiKey = '';
+let orgScopes = [];
 let currentApp = null;
 let currentAppMeta = null;
 let currentVulns = [];
@@ -353,10 +394,19 @@ async function loadDashboard() {
   showScreen('list-screen');
   document.getElementById('logout-btn').style.display = 'block';
 
-  const [appsRes, reportRes] = await Promise.allSettled([
+  // Fetch me, apps, and report concurrently
+  const [meRes, appsRes, reportRes] = await Promise.allSettled([
+    apiFetch('/api/v1/me'),
     apiFetch('/api/v1/apps'),
     apiFetch('/api/v1/report'),
   ]);
+
+  if (meRes.status === 'fulfilled') {
+    orgScopes = meRes.value.scopes || [];
+    const isAdmin = orgScopes.includes('org:admin');
+    document.getElementById('keys-section').style.display = isAdmin ? 'block' : 'none';
+    if (isAdmin) loadKeys();
+  }
 
   // Summary cards
   if (reportRes.status === 'fulfilled') {
@@ -743,6 +793,107 @@ async function runCVESearch() {
 document.getElementById('cve-btn').addEventListener('click', runCVESearch);
 document.getElementById('cve-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') runCVESearch();
+});
+
+// ── Key management ────────────────────────────────────────────────────────────
+
+async function loadKeys() {
+  const el = document.getElementById('keys-wrap');
+  try {
+    const data = await apiFetch('/api/v1/keys');
+    const keys = data.keys;
+    if (!keys.length) {
+      el.innerHTML = '<div class="empty c-muted">No keys yet. Create one above.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr>
+          <th>Name</th><th>Scopes</th><th>Created</th><th>Last used</th><th></th>
+        </tr></thead>
+        <tbody>${keys.map(k => `
+          <tr>
+            <td class="mono">${esc(k.name)}</td>
+            <td>${(k.scopes || []).map(s => `<span class="eco">${esc(s)}</span>`).join(' ')}</td>
+            <td class="c-muted">${timeAgo(k.created_at)}</td>
+            <td class="c-muted">${k.last_used_at ? timeAgo(k.last_used_at) : 'Never'}</td>
+            <td><button class="btn-sm" style="border-color:var(--red);color:var(--red)" data-revoke="${esc(k.id)}">Revoke</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+  } catch {
+    el.innerHTML = '<div class="empty">Failed to load keys.</div>';
+  }
+}
+
+// New key form toggle
+document.getElementById('new-key-btn').addEventListener('click', () => {
+  const form = document.getElementById('new-key-form');
+  const showing = form.style.display !== 'none';
+  form.style.display = showing ? 'none' : 'block';
+  document.getElementById('new-key-result').style.display = 'none';
+  document.getElementById('new-key-name').value = '';
+});
+document.getElementById('cancel-key-btn').addEventListener('click', () => {
+  document.getElementById('new-key-form').style.display = 'none';
+});
+
+// Create key
+document.getElementById('create-key-btn').addEventListener('click', async () => {
+  const name = document.getElementById('new-key-name').value.trim();
+  if (!name) { document.getElementById('new-key-name').focus(); return; }
+
+  const scopes = [];
+  if (document.getElementById('scope-ingest').checked) scopes.push('sbom:ingest');
+  if (document.getElementById('scope-read').checked)   scopes.push('sbom:read');
+  if (document.getElementById('scope-admin').checked)  scopes.push('org:admin');
+  if (!scopes.length) { alert('Select at least one scope.'); return; }
+
+  const btn = document.getElementById('create-key-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+
+  try {
+    const data = await apiFetch('/api/v1/keys', {
+      method: 'POST',
+      body: JSON.stringify({ name, scopes }),
+    });
+    document.getElementById('new-key-value').textContent = data.api_key;
+    document.getElementById('new-key-result').style.display = 'block';
+    loadKeys();
+  } catch {
+    alert('Failed to create key.');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Create';
+});
+
+// Copy newly created key
+document.getElementById('copy-key-btn').addEventListener('click', () => {
+  const val = document.getElementById('new-key-value').textContent;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.getElementById('copy-key-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+});
+
+// Revoke key — event delegation on keys-wrap
+document.getElementById('keys-wrap').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-revoke]');
+  if (!btn) return;
+  if (!confirm('Revoke this key? Any system using it will lose access immediately.')) return;
+  const id = btn.dataset.revoke;
+  btn.disabled = true;
+  btn.textContent = 'Revoking…';
+  try {
+    await apiFetch(`/api/v1/keys/${id}`, { method: 'DELETE' });
+    loadKeys();
+  } catch {
+    alert('Failed to revoke key.');
+    btn.disabled = false;
+    btn.textContent = 'Revoke';
+  }
 });
 
 // ── Tab switching ─────────────────────────────────────────────────────────────

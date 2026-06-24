@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get Started — PackrAI</title>
+<style>
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --accent:  #3fb950;
+    --red:     #f85149;
+    --blue:    #58a6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 40px; width: 100%; max-width: 440px; }
+  .logo { font-weight: 700; font-size: 18px; letter-spacing: -0.3px; margin-bottom: 24px; }
+  .logo span { color: var(--accent); }
+  h1  { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  p   { color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+
+  label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+  .field { margin-bottom: 16px; }
+  input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; transition: border-color .15s; }
+  input:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+
+  .btn { width: 100%; background: var(--accent); color: #000; font-weight: 700; border: none; padding: 11px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 4px; transition: opacity .15s; }
+  .btn:hover { opacity: .88; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .error   { color: var(--red);    font-size: 13px; margin-top: 12px; display: none; }
+  .success { display: none; text-align: center; padding: 16px 0; }
+  .success-icon { font-size: 36px; margin-bottom: 12px; }
+  .success h2 { font-size: 18px; margin-bottom: 8px; }
+  .success p  { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .footer { margin-top: 20px; font-size: 12px; color: var(--muted); text-align: center; }
+  .footer a { color: var(--blue); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">Packr<span>AI</span></div>
+
+  <div id="form-view">
+    <h1>Get your API key</h1>
+    <p>Enter your org name and email. Your key will be emailed to you instantly — no credit card required.</p>
+
+    <div class="field">
+      <label for="org-input">Organisation / Project name</label>
+      <input type="text" id="org-input" placeholder="acme-corp" maxlength="100" autocomplete="organization">
+    </div>
+    <div class="field">
+      <label for="email-input">Email address</label>
+      <input type="email" id="email-input" placeholder="you@example.com" autocomplete="email">
+    </div>
+
+    <button class="btn" id="submit-btn">Get API key</button>
+    <div class="error" id="error-msg"></div>
+  </div>
+
+  <div class="success" id="success-view">
+    <div class="success-icon">📬</div>
+    <h2>Check your email</h2>
+    <p>We've sent your API key to <strong id="sent-to"></strong>.<br>It includes your quick-start instructions.</p>
+  </div>
+</div>
+
+<div class="footer">
+  Already have a key? <a href="/dashboard">Open dashboard</a>
+</div>
+
+<script>
+document.getElementById('submit-btn').addEventListener('click', submit);
+document.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+
+async function submit() {
+  const orgName = document.getElementById('org-input').value.trim();
+  const email   = document.getElementById('email-input').value.trim();
+  const errEl   = document.getElementById('error-msg');
+  const btn     = document.getElementById('submit-btn');
+
+  errEl.style.display = 'none';
+
+  if (!orgName) { showError('Please enter your org or project name.'); return; }
+  if (!email)   { showError('Please enter your email address.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+
+  try {
+    const r = await fetch('/api/v1/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orgName, email }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showError(data.error || 'Something went wrong — try again.'); return; }
+
+    document.getElementById('sent-to').textContent = email;
+    document.getElementById('form-view').style.display   = 'none';
+    document.getElementById('success-view').style.display = 'block';
+  } catch {
+    showError('Network error — check your connection and try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Get API key';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>
