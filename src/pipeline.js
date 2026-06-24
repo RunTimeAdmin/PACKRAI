@@ -9,8 +9,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { detect } = require('./parsers/detect');
+const { detect, detectDockerfiles } = require('./parsers/detect');
 const { parseLockFile } = require('./parsers/index');
+const { parseDockerfile } = require('./parsers/dockerfile');
 const { enrichWithOSV } = require('./osv');
 const { enrichWithLicenses } = require('./licenses');
 const { generateCycloneDX, validateCycloneDX } = require('./generators/cyclonedx');
@@ -29,6 +30,7 @@ const { assessLicenses } = require('./licensePolicy');
  * @param {boolean} [opts.licenses]  - run deps.dev license enrichment (default: true)
  * @param {boolean} [opts.recursive] - walk subdirs for monorepos (default: true)
  * @param {string}  [opts.format]    - 'both' | 'cyclonedx' | 'spdx' (default: 'both')
+ * @param {boolean} [opts.docker]    - audit Dockerfiles and include base images (default: true)
  */
 async function generateFromDirectory(dir, opts = {}) {
     const startMs = Date.now();
@@ -36,6 +38,7 @@ async function generateFromDirectory(dir, opts = {}) {
     const version = opts.version || 'unknown';
     const runVulns    = opts.vulns    !== false;
     const runLicenses = opts.licenses !== false;
+    const runDocker   = opts.docker   !== false;
     const fmt = opts.format || 'both';
     const wantCDX  = fmt !== 'spdx';
     const wantSPDX = fmt !== 'cyclonedx';
@@ -56,11 +59,32 @@ async function generateFromDirectory(dir, opts = {}) {
         ecosystemsFound.add(lf.ecosystem);
     }
 
-    // 3. Parallel enrichment — license and vulnerability data
+    // 2b. Dockerfile audit — runs independently of lock-file count
+    const dockerfileAudit = [];
+    if (runDocker) {
+        const maxDepth = opts.recursive !== false ? 4 : 0;
+        for (const df of detectDockerfiles(dir, { maxDepth })) {
+            try {
+                dockerfileAudit.push(parseDockerfile(df.path));
+            } catch (e) {
+                console.warn(`[packrai] Dockerfile parse warning (${df.path}): ${e.message}`);
+            }
+        }
+    }
+
+    // 3. Parallel enrichment — library components only (not container base images)
     await Promise.all([
         runLicenses && allComponents.length > 0 ? enrichWithLicenses(allComponents) : null,
         runVulns    && allComponents.length > 0 ? enrichWithOSV(allComponents)      : null,
     ]);
+
+    // 3b. Add container base images to components after enrichment so they don't
+    //     affect OSV/license lookups or the quality score calculation below.
+    for (const audit of dockerfileAudit) {
+        for (const img of audit.baseImages) {
+            allComponents.push(makeContainerComponent(img));
+        }
+    }
 
     // 4. Generate only requested formats
     const meta = { name, version, author: opts.author };
@@ -81,18 +105,25 @@ async function generateFromDirectory(dir, opts = {}) {
     const { vulnCount, criticalCount } = countVulns(allComponents);
     const licenseCompliance = assessLicenses(allComponents);
 
+    const dockerFindings = dockerfileAudit.reduce((acc, a) => acc + a.findings.length, 0);
+    const dockerHigh     = dockerfileAudit.reduce((acc, a) => acc + a.summary.high, 0);
+
     return {
         cyclonedx,
         spdx,
         components: allComponents,
+        dockerfileAudit,
         stats: {
             totalComponents: allComponents.length,
             ecosystems: [...ecosystemsFound],
             lockFilesScanned: lockFiles.map((lf) => lf.path),
+            dockerfilesScanned: dockerfileAudit.map((a) => a.path),
             vulnerabilities: vulnCount,
             critical: criticalCount,
             qualityScore: computeQualityScore(allComponents, lockFiles),
             licenseCompliance,
+            dockerFindings,
+            dockerHigh,
             elapsedMs,
         },
     };
@@ -133,13 +164,39 @@ function countVulns(components) {
     return { vulnCount, criticalCount };
 }
 
+function makeContainerComponent(img) {
+    const tag     = img.tag || null;
+    const digest  = img.digest || null;
+    const version = tag || digest || 'unknown';
+    // PURL spec: pkg:docker/<name>@<tag-or-digest>
+    // Official Docker Hub images (no slash) are under the 'library' namespace
+    const purlName = img.name.includes('/') ? img.name : `library/${img.name}`;
+    const purl = `pkg:docker/${purlName}@${version}`;
+    return {
+        type: 'container',
+        name: img.name,
+        version,
+        ecosystem: 'container',
+        purl,
+        scope: 'required',
+        licenses: [],
+        hashes: digest ? [{ alg: 'SHA-256', content: digest.replace('sha256:', '') }] : [],
+        dependsOn: [],
+        description: 'Docker base image',
+        homepage: '',
+        vulnerabilities: [],
+    };
+}
+
 function computeQualityScore(components, lockFiles) {
-    if (!components.length) return 0;
+    // Only score library components — container base images are tracked separately
+    const libs = components.filter((c) => c.ecosystem !== 'container');
+    if (!libs.length) return 0;
 
     const NOASSERT = new Set(['NOASSERTION', 'UNKNOWN', null, undefined, '']);
     let withPurl = 0, withHash = 0, withLicense = 0;
 
-    for (const c of components) {
+    for (const c of libs) {
         if (c.purl && !c.purl.includes('NOASSERTION')) withPurl++;
         if (c.hashes?.length) withHash++;
         if (c.licenses?.length && !NOASSERT.has(c.licenses[0])) withLicense++;
@@ -151,9 +208,9 @@ function computeQualityScore(components, lockFiles) {
         : 1;
 
     return Math.round(
-        25 * (withPurl    / components.length) +
-        25 * (withHash    / components.length) +
-        25 * (withLicense / components.length) +
+        25 * (withPurl    / libs.length) +
+        25 * (withHash    / libs.length) +
+        25 * (withLicense / libs.length) +
         25 * strongFraction
     );
 }

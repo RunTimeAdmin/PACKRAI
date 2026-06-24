@@ -121,4 +121,36 @@ function pickBest(candidates, preferenceOrder) {
     return null;
 }
 
-module.exports = { detect };
+/**
+ * Find all Dockerfiles under rootDir.
+ * Matches: 'Dockerfile', 'Dockerfile.prod', 'Dockerfile.dev', etc.
+ */
+function detectDockerfiles(rootDir, opts = {}) {
+    const { maxDepth = 4 } = opts;
+    const found = [];
+    walkForDocker(rootDir, found, 0, maxDepth);
+    return found;
+}
+
+function walkForDocker(dir, found, depth, maxDepth) {
+    if (depth > maxDepth) return;
+    let entries;
+    try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+        return;
+    }
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            if (!SKIP_DIRS.has(entry.name)) {
+                walkForDocker(path.join(dir, entry.name), found, depth + 1, maxDepth);
+            }
+            continue;
+        }
+        if (entry.name === 'Dockerfile' || /^Dockerfile\.[a-zA-Z0-9]+$/.test(entry.name)) {
+            found.push({ type: 'dockerfile', path: path.join(dir, entry.name) });
+        }
+    }
+}
+
+module.exports = { detect, detectDockerfiles };

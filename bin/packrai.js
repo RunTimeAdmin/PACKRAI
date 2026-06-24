@@ -111,6 +111,7 @@ program
     .option('--no-vulns',           'Skip OSV vulnerability enrichment')
     .option('--no-licenses',        'Skip deps.dev license enrichment')
     .option('--no-recursive',       'Do not recurse into subdirectories')
+    .option('--no-docker',          'Skip Dockerfile audit')
     .option('--format <fmt>',       'Output format: both|cyclonedx|spdx',      'both')
     .option('--license-check',      'Flag forbidden/restricted licenses; exit 1 if any found')
     .option('--explain',            'Use AI to explain vulnerabilities and suggest a remediation plan (requires DEEPSEEK_API_KEY)')
@@ -163,6 +164,7 @@ program
                 vulns:     opts.vulns,
                 licenses:  opts.licenses,
                 recursive: opts.recursive,
+                docker:    opts.docker,
                 format:    opts.format,
             });
 
@@ -200,7 +202,36 @@ program
                 }
 
                 console.log(ok(`Quality score  ${stats.qualityScore}/100`));
-                console.log(dim(`${stats.lockFilesScanned.length} lock file(s) · ${stats.elapsedMs}ms`));
+
+                // ── Dockerfile audit ──────────────────────────────────────────
+                if (result.dockerfileAudit.length > 0) {
+                    const err = (s) => `\x1b[31m✖\x1b[0m ${s}`;
+                    console.log('');
+                    for (const audit of result.dockerfileAudit) {
+                        const rel = path.relative(scanDir, audit.path);
+                        if (audit.findings.length === 0) {
+                            console.log(ok(`${rel}  ·  no Dockerfile issues`));
+                        } else {
+                            const { high, medium, low } = audit.summary;
+                            const parts = [];
+                            if (high)   parts.push(`${high} HIGH`);
+                            if (medium) parts.push(`${medium} MEDIUM`);
+                            if (low)    parts.push(`${low} LOW`);
+                            const label = high > 0 ? err : warn;
+                            console.log(label(`${rel}  ·  ${parts.join('  ')}${audit.hasMultiStage ? '  · multi-stage' : ''}`));
+                            for (const f of audit.findings) {
+                                const loc = f.line ? `:${f.line}` : '';
+                                console.log(dim(`  [${f.severity}] ${f.rule}${loc}  ${f.message}`));
+                            }
+                        }
+                        if (audit.baseImages.length > 0) {
+                            const imgs = audit.baseImages.map((i) => i.raw).join(', ');
+                            console.log(dim(`  base: ${imgs}`));
+                        }
+                    }
+                }
+
+                console.log(dim(`${stats.lockFilesScanned.length} lock file(s)${stats.dockerfilesScanned.length ? `  ·  ${stats.dockerfilesScanned.length} Dockerfile(s)` : ''}  ·  ${stats.elapsedMs}ms`));
 
                 // ── License compliance ────────────────────────────────────────
                 if (opts.licenseCheck) {
