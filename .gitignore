@@ -36,6 +36,9 @@ packrai.xyz/
 # VPS environment file — contains server credentials
 deploy/vps.env
 
+# Source design assets — optimized WebP/JPG in assets/ are the production files
+assets/*.png
+
 # Generated SBOM output dropped in repo root during dev/testing
 /bom.cyclonedx.json
 /bom.spdx.json

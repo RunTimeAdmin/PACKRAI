@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB:       packrai
       POSTGRES_USER:     packrai
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./src/api/schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -19,7 +19,7 @@ services:
     ports:
       - "127.0.0.1:${PORT:-3080}:3080"
     environment:
-      DATABASE_URL:      postgres://packrai:${POSTGRES_PASSWORD:-changeme}@db:5432/packrai
+      DATABASE_URL:      postgres://packrai:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@db:5432/packrai
       ADMIN_KEY:         ${ADMIN_KEY:?ADMIN_KEY must be set in .env}
       HMAC_SECRET:       ${HMAC_SECRET:?HMAC_SECRET must be set in .env}
       PORT:              3080

@@ -46,10 +46,10 @@ npx packrai . --license-check
 npx packrai owner/repo --no-vulns
 
 # AI remediation advice — explains vulns and produces a prioritised fix plan
-DEEPSEEK_API_KEY=sk-... npx packrai . --explain
+DEEPSEEK_API_KEY=<your-deepseek-key> npx packrai . --explain
 
 # AI explain with CISA KEV context — flags actively-exploited vulns
-DEEPSEEK_API_KEY=sk-... KATZILLA_API_KEY=kz_... npx packrai . --explain
+DEEPSEEK_API_KEY=<your-deepseek-key> KATZILLA_API_KEY=<your-katzilla-key> npx packrai . --explain
 ```
 
 Output files written to the current directory:
@@ -167,7 +167,7 @@ Requires `KATZILLA_API_KEY` ([katzilla.dev](https://katzilla.dev)). The catalog 
 
 ### AI Remediation Advice
 ```bash
-DEEPSEEK_API_KEY=sk-... npx packrai . --explain
+DEEPSEEK_API_KEY=<your-deepseek-key> npx packrai . --explain
 ```
 After scanning, sends your vulnerability list to [DeepSeek-V3](https://platform.deepseek.com) and returns:
 - 2–3 sentence plain-English risk summary
