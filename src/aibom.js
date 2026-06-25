@@ -31,6 +31,7 @@ const {
     AI_PYTHON_PACKAGES,
 } = require('./parsers/aimodel');
 const { detectAgenticContext } = require('./parsers/agentic');
+const { parseModelCardMarkdown, metricsFromModelIndex } = require('./parsers/modelcard');
 
 const HF_API_BASE = 'https://huggingface.co/api/models';
 
@@ -224,7 +225,30 @@ async function fetchHFMeta(modelId, { timeout = 8000 } = {}) {
             disabled:     !!d.disabled,
             author:       modelId.split('/')[0],
             lastModified: d.lastModified || null,
+            // Provider-reported benchmark metrics (CycloneDX quantitativeAnalysis)
+            metrics:      metricsFromModelIndex(d.cardData?.['model-index']),
         };
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+// Fetch and parse a model's README.md model card → CycloneDX considerations.
+// Returns provider-authored governance text (use cases, limitations, ethics).
+async function fetchHFConsiderations(modelId, { timeout = 8000 } = {}) {
+    if (!modelId || !modelId.includes('/')) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+        const res = await fetch(`https://huggingface.co/${modelId}/raw/main/README.md`, {
+            signal:  controller.signal,
+            headers: { 'User-Agent': 'packrai-aibom/1.0' },
+        });
+        if (!res.ok) return null;
+        const md = await res.text();
+        return parseModelCardMarkdown(md);   // { considerations } | null
     } catch {
         return null;
     } finally {
@@ -390,18 +414,23 @@ function makeFrameworkComponent(label, role, version) {
 function enrichWithHFMeta(comp, meta) {
     if (meta.sha) {
         comp.version = meta.sha.slice(0, 12);
-        comp.hashes  = [{ alg: 'SHA-1', content: meta.sha }];
-        comp.purl    = comp.purl.replace(/@[^@]*$/, `@${comp.version}`);
+        // Append the Hub commit hash (SHA-1) — do not clobber a local weight SHA-256
+        if (!comp.hashes.some(h => h.content === meta.sha)) {
+            comp.hashes.push({ alg: 'SHA-1', content: meta.sha });
+        }
+        comp.purl = comp.purl.replace(/@[^@]*$/, `@${comp.version}`);
     }
     if (meta.license) comp.licenses = [meta.license];
     if (meta.pipeline) comp.modelCard.modelParameters.task      = meta.pipeline;
     if (meta.baseModel) comp.modelCard.modelParameters.baseModel = meta.baseModel;
+    // Provider-reported benchmark metrics → CycloneDX quantitativeAnalysis
+    if (meta.metrics) comp.modelCard.quantitativeAnalysis = meta.metrics;
     Object.assign(comp.aiMetadata, {
         source:       'huggingface',
         sha:          meta.sha,
         pipeline:     meta.pipeline,
         baseModel:    meta.baseModel,
-        datasets:     meta.datasets,
+        datasets:     meta.datasets?.length ? meta.datasets : comp.aiMetadata.datasets,
         gated:        meta.gated,
         author:       meta.author,
         lastModified: meta.lastModified,
@@ -616,15 +645,26 @@ function detectAILocal(dir, pythonComponents = [], opts = {}) {
 async function enrichAIComponents(enrichTargets = [], opts = {}) {
     const extraThreats = [];
     await Promise.all(enrichTargets.map(async ({ modelId, comp }) => {
-        const meta = await fetchHFMeta(modelId, opts);
+        // Hub metadata + README model card fetched in parallel
+        const [meta, considerations] = await Promise.all([
+            fetchHFMeta(modelId, opts),
+            fetchHFConsiderations(modelId, opts),
+        ]);
         if (!meta) {
             extraThreats.push(threat(THREATS.NO_PROVENANCE, modelId));
-            return;
+        } else {
+            enrichWithHFMeta(comp, meta);
+            if (meta.license && RESTRICTED_LICENSES.has(meta.license.toLowerCase())) {
+                extraThreats.push(threat(THREATS.RESTRICTED_LICENSE, comp.name,
+                    { description: `${THREATS.RESTRICTED_LICENSE.description} (${meta.license})` }));
+            }
         }
-        enrichWithHFMeta(comp, meta);
-        if (meta.license && RESTRICTED_LICENSES.has(meta.license.toLowerCase())) {
-            extraThreats.push(threat(THREATS.RESTRICTED_LICENSE, comp.name,
-                { description: `${THREATS.RESTRICTED_LICENSE.description} (${meta.license})` }));
+        // Provider-authored considerations (use cases, limitations, ethics)
+        if (considerations?.considerations) {
+            comp.modelCard.considerations = {
+                ...(comp.modelCard.considerations || {}),
+                ...considerations.considerations,
+            };
         }
     }));
     return { threats: extraThreats };

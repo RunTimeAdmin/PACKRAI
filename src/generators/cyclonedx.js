@@ -201,6 +201,9 @@ function buildModelCard(comp) {
         const entry = { type: 'dataset', name: id };
         if (typeof id === 'string' && id.includes('/')) {
             entry.contents = { url: `https://huggingface.co/datasets/${id}` };
+            // Governance owner derived from the dataset namespace (the publishing org).
+            // No email is asserted — only what the identifier actually proves.
+            entry.governance = { owners: [{ contact: { name: id.split('/')[0] } }] };
         }
         return entry;
     });

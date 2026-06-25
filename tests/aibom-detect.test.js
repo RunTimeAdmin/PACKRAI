@@ -11,6 +11,7 @@ const { parseMCPConfig } = require('../src/parsers/agentic');
 const { hashWeightFile, parseHFConfig } = require('../src/parsers/aimodel');
 const { generateCycloneDX, validateCycloneDX } = require('../src/generators/cyclonedx');
 const { assessCompliance } = require('../src/ai/compliance');
+const { parseModelCardMarkdown, metricsFromModelIndex } = require('../src/parsers/modelcard');
 
 let root;
 
@@ -165,6 +166,69 @@ test('MCP component carries a standard agentic:authority property', () => {
     const authority = shell.properties.find(p => p.name === 'agentic:authority');
     assert.strictEqual(authority.value, 'shell-execution');
     assert.ok(shell.properties.some(p => p.name === 'runtime:fencing:shellExecution'));
+});
+
+// ── Model-card README parsing (considerations) ────────────────────────────────
+
+test('parseModelCardMarkdown extracts useCases, limitations, and ethics', () => {
+    const md = [
+        '---', 'license: llama3', '---',
+        '# Model',
+        '## Intended Use', '- Chatbots', '- Code generation',
+        '## Limitations', '- May hallucinate', '- 8k context',
+        '## Bias, Risks, and Limitations', 'The model may reflect biases. Alignment tuning was applied.',
+    ].join('\n');
+    const out = parseModelCardMarkdown(md).considerations;
+    assert.deepStrictEqual(out.useCases, ['Chatbots', 'Code generation']);
+    assert.ok(out.technicalLimitations.includes('May hallucinate'));
+    assert.strictEqual(out.ethicalConsiderations.length, 1);
+    assert.ok(out.ethicalConsiderations[0].mitigationStrategy.includes('Alignment tuning'));
+});
+
+test('parseModelCardMarkdown returns null when no relevant sections exist', () => {
+    assert.strictEqual(parseModelCardMarkdown('# Title\nSome prose with no governance sections.'), null);
+});
+
+test('metricsFromModelIndex maps provider-reported benchmarks', () => {
+    const mi = [{ results: [{ metrics: [{ type: 'accuracy', name: 'MMLU', value: 68.4 }] }] }];
+    const out = metricsFromModelIndex(mi);
+    assert.strictEqual(out.performanceMetrics[0].type, 'MMLU');
+    assert.strictEqual(out.performanceMetrics[0].value, '68.4');
+});
+
+// ── modelCard governance + provider passthrough ───────────────────────────────
+
+test('embedded datasets carry governance.owners derived from the namespace', () => {
+    const comp = {
+        type: 'machine-learning-model', name: 'm', version: '1', ecosystem: 'ai',
+        purl: 'pkg:huggingface/org/m@1', licenses: [], hashes: [],
+        aiMetadata: { role: 'model-weights', datasets: ['allenai/c4'] }, modelCard: {},
+    };
+    const cdx = generateCycloneDX([comp], { name: 'app', version: '1.0' });
+    const ds = cdx.components[0].modelCard.modelParameters.datasets[0];
+    assert.strictEqual(ds.contents.url, 'https://huggingface.co/datasets/allenai/c4');
+    assert.strictEqual(ds.governance.owners[0].contact.name, 'allenai');
+});
+
+test('provider metrics and considerations pass through but are never fabricated', () => {
+    const enriched = {
+        type: 'machine-learning-model', name: 'm', version: '1', ecosystem: 'ai',
+        purl: 'pkg:huggingface/org/m@1', licenses: [], hashes: [],
+        aiMetadata: { role: 'model-weights', pipeline: 'text-generation' },
+        modelCard: {
+            quantitativeAnalysis: { performanceMetrics: [{ type: 'MMLU', value: '68.4' }] },
+            considerations: { useCases: ['Chatbots'], ethicalConsiderations: [{ name: 'Bias', mitigationStrategy: 'x' }] },
+        },
+    };
+    const bare = { ...enriched, modelCard: {} };
+    const cdxEnriched = generateCycloneDX([enriched], { name: 'app', version: '1.0' });
+    const cdxBare     = generateCycloneDX([bare], { name: 'app', version: '1.0' });
+    // Enriched: metrics + considerations present
+    assert.strictEqual(cdxEnriched.components[0].modelCard.quantitativeAnalysis.performanceMetrics[0].type, 'MMLU');
+    assert.ok(cdxEnriched.components[0].modelCard.considerations.useCases.includes('Chatbots'));
+    // Bare (no provider data): no fabricated metrics or use cases
+    assert.strictEqual(cdxBare.components[0].modelCard.quantitativeAnalysis, undefined);
+    assert.strictEqual(cdxBare.components[0].modelCard.considerations, undefined);
 });
 
 test('assessCompliance maps EU AI Act Article 53 controls', () => {
