@@ -63,7 +63,39 @@ Authorization: Bearer <your-api-key>
 | \`sbom:read\` | GET endpoints — apps, search, report, vulns, components, diff |
 | \`org:admin\` | All of the above + key management |
 
-Get an API key at [api.packrai.xyz/register](https://api.packrai.xyz/register).`
+Get an API key at [api.packrai.xyz/register](https://api.packrai.xyz/register).
+
+---
+
+## Scan Modes
+
+### Hosted Fast Scan (default)
+The default mode when you call `POST /api/v1/scan`.
+
+| Setting | Value |
+|---|---|
+| Timeout | 3 minutes |
+| OSV enrichment | After ingest (async) |
+| License enrichment | Disabled |
+| AI enrichment | Local detection only |
+| Max components | 10,000 |
+
+Best for standard app repos and quick dashboard results.
+
+### CLI / CI Scan (recommended for large or private repos)
+Run PackrAI where the code already lives and push the result:
+
+```bash
+packrai owner/repo --push --api-key <your-key>
+```
+
+Use this path for:
+- Monorepos or large lockfiles
+- Private repositories (source never leaves your infrastructure)
+- Full license and AI enrichment
+- Scans that exceed the 3-minute hosted timeout
+
+Results upload via `POST /api/v1/ingest` — the same endpoint the hosted scanner uses internally.`
   },
   servers: [{ url: "https://api.packrai.xyz", description: "Production" }],
   components: {
