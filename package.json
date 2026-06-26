@@ -12,6 +12,7 @@
     "serve": "node src/api/server.js",
     "e2e": "node scripts/e2e.js",
     "bench": "node scripts/benchmark.js",
+    "bench:aibom": "node scripts/benchmark-aibom.js",
     "lint": "eslint src/ bin/"
   },
   "dependencies": {

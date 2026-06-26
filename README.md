@@ -248,6 +248,26 @@ PACKRAI_SIGNING_KEY=./ed25519.pem npx packrai .
 | `AI-011` | `UNAUTHENTICATED_REMOTE` | remote MCP transport, no auth |
 | `AI-012` | `PROMPT_TAMPERING` | prompt files detected (hash-locked) |
 
+### Performance
+
+```
+node scripts/benchmark-aibom.js
+```
+
+| Stage | Time | Notes |
+|-------|------|-------|
+| Detection — no AI artifacts | ~2ms | Near-zero overhead on plain projects |
+| Detection — AI project (any weight size) | ~5–10ms | Single filesystem walk; hashing is separate |
+| Weight hashing — 1 MB file | ~7ms | |
+| Weight hashing — 100 MB file | ~275ms | ~328 MB/s streaming SHA-256 |
+| Weight hashing — 1 GB file | ~3.1s | Typical 7B model (~14 GB) ≈ 43s |
+| CycloneDX generation (with AI components) | ~3ms | |
+| Lineage + compliance assessment | ~2ms | |
+
+Weight hashing is the only step that scales with file size. It is disabled by default on the API server fast-scan path (`--no-aibom-enrich`) and enabled when running locally or when `--aibom-enrich` is set.
+
+HuggingFace Hub enrichment is network-bound and not included above. Latency depends on the number of models detected; it fires in parallel with OSV enrichment.
+
 ### CycloneDX 1.7 opt-in
 The default output is CycloneDX **1.6** for maximum toolchain compatibility. Pass `specVersion: '1.7'` in the API or `--spec-version 1.7` on the CLI to enable the full 1.7 ML-BOM `modelCard` schema including `quantitativeAnalysis` and richer `considerations`.
 
