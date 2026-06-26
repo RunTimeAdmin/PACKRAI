@@ -2,14 +2,14 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB:       packrai
-      POSTGRES_USER:     packrai
+      POSTGRES_DB:       sbomix
+      POSTGRES_USER:     sbomix
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./src/api/schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test:     ["CMD-SHELL", "pg_isready -U packrai"]
+      test:     ["CMD-SHELL", "pg_isready -U sbomix"]
       interval: 5s
       timeout:  5s
       retries:  5
@@ -19,7 +19,7 @@ services:
     ports:
       - "127.0.0.1:${PORT:-3080}:3080"
     environment:
-      DATABASE_URL:      postgres://packrai:${POSTGRES_PASSWORD:-changeme}@db:5432/packrai
+      DATABASE_URL:      postgres://sbomix:${POSTGRES_PASSWORD:-changeme}@db:5432/sbomix
       ADMIN_KEY:         ${ADMIN_KEY:?ADMIN_KEY must be set in .env}
       HMAC_SECRET:       ${HMAC_SECRET:?HMAC_SECRET must be set in .env}
       PORT:              3080
@@ -37,7 +37,7 @@ services:
       STRIPE_PRICE_TEAM_ANNUAL:      ${STRIPE_PRICE_TEAM_ANNUAL:-}
       STRIPE_PRICE_BUSINESS_MONTHLY: ${STRIPE_PRICE_BUSINESS_MONTHLY:-}
       STRIPE_PRICE_BUSINESS_ANNUAL:  ${STRIPE_PRICE_BUSINESS_ANNUAL:-}
-      APP_URL:                       ${APP_URL:-https://api.packrai.xyz}
+      APP_URL:                       ${APP_URL:-https://api.sbomix.com}
     depends_on:
       db:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
     build: .
     command: ["node", "src/api/workers/scanWorker.js"]
     environment:
-      DATABASE_URL:     postgres://packrai:${POSTGRES_PASSWORD:-changeme}@db:5432/packrai
+      DATABASE_URL:     postgres://sbomix:${POSTGRES_PASSWORD:-changeme}@db:5432/sbomix
       HMAC_SECRET:      ${HMAC_SECRET:?HMAC_SECRET must be set in .env}
       RESEND_API_KEY:   ${RESEND_API_KEY:-}
       RESEND_FROM:      ${RESEND_FROM:-}

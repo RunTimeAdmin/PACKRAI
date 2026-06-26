@@ -73,14 +73,14 @@ router.get('/verify', async (req, res) => {
 <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px 20px;font-family:monospace;font-size:13px;word-break:break-all;color:#3fb950;margin-bottom:6px">${apiKey}</div>
 <p style="color:#8b949e;font-size:12px;margin-bottom:28px">⚠ Save this key — it won't be shown again.</p>
 <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">Quick start</h2>
-<pre style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;color:#e6edf3">npm install -g packrai
+<pre style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;color:#e6edf3">npm install -g sbomix
 # Scan locally and push to dashboard via GitHub Action
-# See: https://api.packrai.xyz/docs#scan-modes
+# See: https://api.sbomix.com/docs#scan-modes
 
 # Or scan manually:
-npx packrai owner/repo
-# then view results at https://api.packrai.xyz/dashboard</pre>
-<p style="margin-top:28px;color:#8b949e;font-size:13px">Need help? Reply to this email or visit <a href="https://packrai.xyz" style="color:#58a6ff">packrai.xyz</a>.</p>
+npx sbomix owner/repo
+# then view results at https://api.sbomix.com/dashboard</pre>
+<p style="margin-top:28px;color:#8b949e;font-size:13px">Need help? Reply to this email or visit <a href="https://sbomix.com" style="color:#58a6ff">sbomix.com</a>.</p>
 </body></html>`,
         });
 
@@ -126,7 +126,7 @@ router.post('/api/v1/register', registerLimiter, async (req, res) => {
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await orgsRepo.upsertEmailVerification(db, cleanEmail, cleanOrgName, token, expiresAt);
 
-        const verifyUrl = `https://api.packrai.xyz/verify?token=${token}`;
+        const verifyUrl = `https://api.sbomix.com/verify?token=${token}`;
         await sendEmail({
             to: cleanEmail,
             subject: 'Verify your PackrAI email',
@@ -176,7 +176,7 @@ router.post('/api/v1/resend-key', resendKeyLimiter, async (req, res) => {
 <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px 20px;font-family:monospace;font-size:13px;word-break:break-all;color:#3fb950;margin-bottom:6px">${apiKey}</div>
 <p style="color:#8b949e;font-size:12px;margin-bottom:28px">⚠ Save this key — it won't be shown again.</p>
 <p style="color:#8b949e;font-size:13px">If you didn't request this, you can ignore it — your existing keys remain active.</p>
-<p style="margin-top:16px"><a href="https://api.packrai.xyz/dashboard" style="color:#58a6ff">Open dashboard →</a></p>
+<p style="margin-top:16px"><a href="https://api.sbomix.com/dashboard" style="color:#58a6ff">Open dashboard →</a></p>
 </body></html>`,
             });
         }

@@ -37,7 +37,7 @@ function parseLockFile(lockFile) {
         case 'swift-lock':    return parseSwiftPackageResolved(lockFile.path);
         case 'pubspec-lock':  return parsePubspecLock(lockFile.path);
         default:
-            console.warn(`[packrai] Unknown lock file type: ${lockFile.type}`);
+            console.warn(`[sbomix] Unknown lock file type: ${lockFile.type}`);
             return [];
     }
 }

@@ -120,7 +120,7 @@ function parseYarnLock(filePath) {
     const raw = fs.readFileSync(filePath, 'utf8');
     if (raw.includes('__metadata:')) {
         // yarn v2/berry — not yet supported
-        console.warn('[packrai] yarn.lock v2 (berry) detected — skipping (use package-lock.json or pnpm-lock.yaml)');
+        console.warn('[sbomix] yarn.lock v2 (berry) detected — skipping (use package-lock.json or pnpm-lock.yaml)');
         return [];
     }
     return parseYarnV1(raw);

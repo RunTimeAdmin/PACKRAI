@@ -97,7 +97,7 @@ async function main() {
     let sbomResult;
     try {
         sbomResult = await generateFromDirectory(projectDir, {
-            name:     'packrai',
+            name:     'sbomix',
             version:  '0.1.0',
             vulns:    true,
             licenses: false,   // skip to keep test fast
@@ -116,7 +116,7 @@ async function main() {
         const { status, body } = await req(
             'POST', '/api/v1/ingest',
             {
-                app:       'packrai',
+                app:       'sbomix',
                 version:   '0.1.0',
                 commit:    'e2e-test',
                 branch:    'main',
@@ -148,11 +148,11 @@ async function main() {
     // ── 7. Fetch latest SBOM for the app ─────────────────────────────────────
     info('7. Fetch latest SBOM');
     {
-        const { status, body } = await req('GET', '/api/v1/apps/packrai/sbom', null, authHeader);
+        const { status, body } = await req('GET', '/api/v1/apps/sbomix/sbom', null, authHeader);
         if (status === 200 && body.component_count > 0) {
-            ok(`GET /api/v1/apps/packrai/sbom → 200, ${body.component_count} components, quality: ${body.quality_score}`);
+            ok(`GET /api/v1/apps/sbomix/sbom → 200, ${body.component_count} components, quality: ${body.quality_score}`);
         } else {
-            err(`GET /api/v1/apps/packrai/sbom → ${status}: ${JSON.stringify(body)}`);
+            err(`GET /api/v1/apps/sbomix/sbom → ${status}: ${JSON.stringify(body)}`);
         }
     }
 
@@ -183,7 +183,7 @@ async function main() {
     {
         const { status, body } = await req(
             'POST', '/api/v1/ingest',
-            { app: 'packrai', version: '0.1.0-b', cyclonedx: sbomResult.cyclonedx, stats: sbomResult.stats },
+            { app: 'sbomix', version: '0.1.0-b', cyclonedx: sbomResult.cyclonedx, stats: sbomResult.stats },
             authHeader
         );
         status === 201
@@ -218,7 +218,7 @@ async function main() {
         // ingest-only key CAN ingest
         const { status: ingestStatus } = await req(
             'POST', '/api/v1/ingest',
-            { app: 'packrai', version: '0.1.0-scoped', cyclonedx: sbomResult.cyclonedx, stats: sbomResult.stats },
+            { app: 'sbomix', version: '0.1.0-scoped', cyclonedx: sbomResult.cyclonedx, stats: sbomResult.stats },
             scopedAuth
         );
         ingestStatus === 201

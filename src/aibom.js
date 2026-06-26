@@ -209,7 +209,7 @@ async function fetchHFMeta(modelId, { timeout = 8000 } = {}) {
     try {
         const res = await fetch(`${HF_API_BASE}/${encodeURIComponent(modelId)}`, {
             signal:  controller.signal,
-            headers: { 'User-Agent': 'packrai-aibom/1.0' },
+            headers: { 'User-Agent': 'sbomix-aibom/1.0' },
         });
         if (!res.ok) return null;
         const d = await res.json();
@@ -244,7 +244,7 @@ async function fetchHFConsiderations(modelId, { timeout = 8000 } = {}) {
     try {
         const res = await fetch(`https://huggingface.co/${modelId}/raw/main/README.md`, {
             signal:  controller.signal,
-            headers: { 'User-Agent': 'packrai-aibom/1.0' },
+            headers: { 'User-Agent': 'sbomix-aibom/1.0' },
         });
         if (!res.ok) return null;
         const md = await res.text();

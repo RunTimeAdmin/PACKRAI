@@ -83,7 +83,7 @@ async function generateFromDirectory(dir, opts = {}) {
             aiLocal = detectAILocal(dir, pypiComps, { hashWeights: runAIEnrich });
             allComponents.push(...aiLocal.components);
         } catch (e) {
-            console.warn(`[packrai] AI BOM warning: ${e.message}`);
+            console.warn(`[sbomix] AI BOM warning: ${e.message}`);
         }
     }
 
@@ -95,7 +95,7 @@ async function generateFromDirectory(dir, opts = {}) {
             try {
                 dockerfileAudit.push(parseDockerfile(df.path));
             } catch (e) {
-                console.warn(`[packrai] Dockerfile parse warning (${df.path}): ${e.message}`);
+                console.warn(`[sbomix] Dockerfile parse warning (${df.path}): ${e.message}`);
             }
         }
     }
@@ -164,7 +164,7 @@ async function generateFromDirectory(dir, opts = {}) {
             });
             if (cyclonedx) attachToCycloneDX(cyclonedx, aiBomDocument);
         } catch (e) {
-            console.warn(`[packrai] AI BOM attestation warning: ${e.message}`);
+            console.warn(`[sbomix] AI BOM attestation warning: ${e.message}`);
         }
     }
 

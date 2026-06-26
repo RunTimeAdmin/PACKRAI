@@ -64,7 +64,7 @@ function cloneRepo(target, opts = {}) {
         spawnEnv.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${b64}`;
     }
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `packrai-${repo}-`));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sbomix-${repo}-`));
 
     const args = ['clone', '--depth=1', '--single-branch'];
     if (ref) args.push('--branch', ref);
@@ -128,7 +128,7 @@ async function cloneRepoAsync(target, opts = {}) {
         spawnEnv.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${b64}`;
     }
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `packrai-${repo}-`));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sbomix-${repo}-`));
     const args   = ['clone', '--depth=1', '--single-branch', '--no-tags'];
     if (ref) args.push('--branch', ref);
     args.push(remoteUrl, tmpDir);

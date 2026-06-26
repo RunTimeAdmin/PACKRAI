@@ -5,7 +5,7 @@ const db = require('../db');
 async function sendEmail({ to, subject, html }) {
     const key = process.env.RESEND_API_KEY;
     if (!key) { console.warn('[resend] RESEND_API_KEY not set — skipping email'); return; }
-    const from = process.env.RESEND_FROM || 'PackrAI <noreply@packrai.xyz>';
+    const from = process.env.RESEND_FROM || 'SBOMix <noreply@sbomix.com>';
     const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -70,8 +70,8 @@ async function sendVulnAlertIfNew(orgId, appId, appName) {
 </tr></thead>
 <tbody>${tableRows}</tbody>
 </table>
-<p style="margin-top:20px"><a href="https://api.packrai.xyz/dashboard" style="background:#da3633;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">View in Dashboard</a></p>
-<p style="margin-top:24px;color:#8b949e;font-size:12px">You receive these alerts because your org has an email on file. <a href="https://api.packrai.xyz/dashboard" style="color:#58a6ff">Manage →</a></p>
+<p style="margin-top:20px"><a href="https://api.sbomix.com/dashboard" style="background:#da3633;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">View in Dashboard</a></p>
+<p style="margin-top:24px;color:#8b949e;font-size:12px">You receive these alerts because your org has an email on file. <a href="https://api.sbomix.com/dashboard" style="color:#58a6ff">Manage →</a></p>
 </body></html>`,
         });
     } catch (err) {
@@ -119,8 +119,8 @@ async function sendScanCompleteEmail(orgId, appName, stats, commitSha) {
                 + aiRow
                 + '</table>'
                 + '<p style="margin-bottom:24px;color:#8b949e;font-size:13px">Vulnerability enrichment is running in the background — check your dashboard in a minute for the full CVE picture.</p>'
-                + '<a href="https://api.packrai.xyz/dashboard" style="background:#238636;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">View in Dashboard →</a>'
-                + '<p style="margin-top:32px;color:#8b949e;font-size:11px">PackrAI · <a href="https://packrai.xyz" style="color:#58a6ff">packrai.xyz</a></p>'
+                + '<a href="https://api.sbomix.com/dashboard" style="background:#238636;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">View in Dashboard →</a>'
+                + '<p style="margin-top:32px;color:#8b949e;font-size:11px">SBOMix · <a href="https://sbomix.com" style="color:#58a6ff">sbomix.com</a></p>'
                 + '</body></html>',
         });
     } catch (err) {

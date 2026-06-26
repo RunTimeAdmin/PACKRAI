@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# PackrAI VPS bootstrap — run as root on 76.13.101.31 (Ubuntu 22.04)
+# SBOMix VPS bootstrap — run as root on 76.13.101.31 (Ubuntu 22.04)
 # Usage: bash /tmp/vps-setup.sh
 set -euo pipefail
 
-REPO_URL="https://github.com/RunTimeAdmin/PACKRAI.git"
-INSTALL_DIR="/opt/packrai"
-NGINX_CONF="/etc/nginx/sites-available/packrai-api"
+REPO_URL="https://github.com/RunTimeAdmin/sbomix.git"
+INSTALL_DIR="/opt/sbomix"
+NGINX_CONF="/etc/nginx/sites-available/sbomix-api"
 
 echo "==> Checking Docker..."
 if ! command -v docker &>/dev/null; then
@@ -31,16 +31,16 @@ else
 fi
 
 if [ ! -f "$INSTALL_DIR/.env" ]; then
-    if [ -f /tmp/packrai.env ]; then
-        mv /tmp/packrai.env "$INSTALL_DIR/.env"
-        echo "==> .env installed from /tmp/packrai.env"
+    if [ -f /tmp/sbomix.env ]; then
+        mv /tmp/sbomix.env "$INSTALL_DIR/.env"
+        echo "==> .env installed from /tmp/sbomix.env"
     else
-        echo "ERROR: .env not found. Upload: scp deploy/vps.env root@76.13.101.31:/tmp/packrai.env"
+        echo "ERROR: .env not found. Upload: scp deploy/vps.env root@76.13.101.31:/tmp/sbomix.env"
         exit 1
     fi
 fi
 
-echo "==> Starting PackrAI stack (API + Postgres)..."
+echo "==> Starting SBOMix stack (API + Postgres)..."
 docker compose -f "$INSTALL_DIR/docker-compose.yml" --env-file "$INSTALL_DIR/.env" up -d --build
 
 echo "==> Waiting for stack to come up..."
@@ -48,15 +48,15 @@ sleep 10
 docker compose -f "$INSTALL_DIR/docker-compose.yml" ps
 
 echo "==> Setting up nginx vhost (HTTP only)..."
-cp /tmp/packrai-nginx.conf "$NGINX_CONF"
-ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/packrai-api
+cp /tmp/sbomix-nginx.conf "$NGINX_CONF"
+ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/sbomix-api
 nginx -t && systemctl reload nginx
 
 echo ""
 echo "==> DONE."
 echo "    API running at: http://76.13.101.31:3080  (Docker internal)"
-echo "    Nginx proxying: http://api.packrai.xyz → localhost:3080  (after DNS)"
+echo "    Nginx proxying: http://api.sbomix.com → localhost:3080  (after DNS)"
 echo ""
 echo "==> NEXT STEPS:"
-echo "    1. Add DNS A record: api.packrai.xyz → 76.13.101.31"
-echo "    2. After DNS propagates run: certbot --nginx -d api.packrai.xyz"
+echo "    1. Add DNS A record: api.sbomix.com → 76.13.101.31"
+echo "    2. After DNS propagates run: certbot --nginx -d api.sbomix.com"

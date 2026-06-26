@@ -1,8 +1,8 @@
 {
-  "name": "packrai-api",
+  "name": "sbomix-api",
   "version": "1.0.0",
   "private": true,
-  "description": "PackrAI hosted API server — not published to npm",
+  "description": "SBOMix hosted API server — not published to npm",
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^4.19.2",

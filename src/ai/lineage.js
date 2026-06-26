@@ -114,7 +114,7 @@ function lineageFromComponents(aiComponents, meta = {}) {
                 stage: 'package',
                 artifact: { name: m.name, purl: m.purl, sha256: sha || null },
                 inputs: [m.name],
-                actor: 'packrai-detect',
+                actor: 'sbomix-detect',
                 properties: { format: m.aiMetadata.format },
             });
         }
@@ -126,7 +126,7 @@ function lineageFromComponents(aiComponents, meta = {}) {
             stage: 'deploy',
             artifact: { name: meta.name || 'application', version: meta.version || 'unknown' },
             inputs: models.map((m) => m.name),
-            actor: 'packrai-scan',
+            actor: 'sbomix-scan',
         });
     }
 

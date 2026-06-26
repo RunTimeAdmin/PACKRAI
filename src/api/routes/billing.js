@@ -58,7 +58,7 @@ router.post('/api/v1/billing/checkout', requireScope('org:admin'), async (req, r
             [req.org.id]
         );
         const org    = rows[0];
-        const appUrl = process.env.APP_URL || 'https://api.packrai.xyz';
+        const appUrl = process.env.APP_URL || 'https://api.sbomix.com';
 
         const session = await stripe.checkout.sessions.create({
             ...(org.stripe_customer_id
@@ -98,7 +98,7 @@ router.post('/api/v1/billing/portal', requireScope('org:admin'), async (req, res
             return res.status(400).json({ error: 'No billing account found' });
         }
 
-        const appUrl  = process.env.APP_URL || 'https://api.packrai.xyz';
+        const appUrl  = process.env.APP_URL || 'https://api.sbomix.com';
         const session = await stripe.billingPortal.sessions.create({
             customer:   customerId,
             return_url: `${appUrl}/dashboard`,

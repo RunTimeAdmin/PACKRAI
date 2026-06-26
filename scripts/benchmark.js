@@ -21,7 +21,7 @@ const path = require('path');
 const os   = require('os');
 const fs   = require('fs');
 
-const PACKRAI = path.join(__dirname, '..', 'bin', 'packrai.js');
+const SBOMIX = path.join(__dirname, '..', 'bin', 'sbomix.js');
 
 // Repos chosen because they commit their lock files
 const DEFAULT_TARGETS = [
@@ -102,7 +102,7 @@ async function main() {
 
     for (const target of targets) {
         const [owner, repo] = target.split('/');
-        const cloneDir = path.join(os.tmpdir(), `packrai-bench-${repo}-${Date.now()}`);
+        const cloneDir = path.join(os.tmpdir(), `sbomix-bench-${repo}-${Date.now()}`);
 
         process.stdout.write(`  Cloning ${target} … `);
         try {
@@ -118,9 +118,9 @@ async function main() {
         const dockerMount = toDockerPath(cloneDir);
         const results = [];
 
-        // PackrAI — local scan (no network needed, clone already done)
-        results.push(timeTool('PackrAI', [
-            'node', PACKRAI, cloneDir,
+        // SBOMix — local scan (no network needed, clone already done)
+        results.push(timeTool('SBOMix', [
+            'node', SBOMIX, cloneDir,
             '--no-vulns', '--no-licenses', '--json',
             '--out', os.tmpdir(),
         ]));

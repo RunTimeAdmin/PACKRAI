@@ -77,7 +77,7 @@ async function fetchLicense(system, name, version, timeout) {
     try {
         const res = await fetch(url, {
             signal: controller.signal,
-            headers: { 'User-Agent': 'packrai/0.1 (https://packrai.xyz)' },
+            headers: { 'User-Agent': 'sbomix/0.1 (https://sbomix.com)' },
         });
         if (!res.ok) return null;
 
