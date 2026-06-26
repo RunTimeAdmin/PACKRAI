@@ -110,7 +110,11 @@ function cloneRepo(target, opts = {}) {
 
 /**
  * Async version of cloneRepo — uses execFile so it doesn't block the event loop.
- * Used by the API server for background scan jobs.
+ * Used by scan workers. Accepts an AbortSignal to kill the git process immediately
+ * when the job timeout fires — prevents clones from running past their deadline.
+ *
+ * @param {{ owner, repo, ref }} target
+ * @param {{ token?: string, signal?: AbortSignal }} opts
  */
 async function cloneRepoAsync(target, opts = {}) {
     const { owner, repo, ref } = target;
@@ -130,9 +134,12 @@ async function cloneRepoAsync(target, opts = {}) {
     args.push(remoteUrl, tmpDir);
 
     try {
-        await execFileAsync('git', args, { env: spawnEnv, timeout: 90_000 });
+        await execFileAsync('git', args, { env: spawnEnv, timeout: 90_000, signal: opts.signal });
     } catch (err) {
         try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        if (err.code === 'ERR_ABORT' || err.name === 'AbortError') {
+            throw new Error('Scan timed out — repository may be too large. Use the CLI for large repos.');
+        }
         const msg = (err.stderr || err.stdout || err.message || '').trim();
         if (msg.includes('not found') || msg.includes('Repository not found')) {
             throw new Error(`Repository not found: ${owner}/${repo}`);
@@ -141,7 +148,7 @@ async function cloneRepoAsync(target, opts = {}) {
             throw new Error(`Ref '${ref}' not found in ${owner}/${repo}`);
         }
         if (err.killed || err.signal === 'SIGTERM') {
-            throw new Error(`Clone timed out — this repository may be too large. Use the CLI for large repos.`);
+            throw new Error('Scan timed out — repository may be too large. Use the CLI for large repos.');
         }
         throw new Error(`Clone failed: ${msg.slice(0, 200)}`);
     }

@@ -24,23 +24,25 @@ const RECOVERY_MS    = 60_000;
 
 process.stdout.write(`[worker] ${WORKER_ID} starting — poll=${POLL_MS}ms timeout=${TIMEOUT_MS}ms\n`);
 
+function logJob(fields) {
+    const parts = Object.entries(fields).map(([k, v]) => `${k}=${v}`);
+    console.log(`[worker] ${parts.join(' ')}`);
+}
+
 async function runJob(job) {
     const { id: jobId, org_id: orgId, repo, ref } = job;
+    const startedAt = Date.now();
     let cleanup = null;
-    let aborted = false;
 
-    const timeoutHandle = setTimeout(() => {
-        aborted = true;
-        if (cleanup) { try { cleanup(); cleanup = null; } catch {} }
-    }, TIMEOUT_MS);
+    const ac = new AbortController();
+    const timeoutHandle = setTimeout(() => ac.abort(), TIMEOUT_MS);
 
     try {
         const target = parseGitHubTarget(repo + (ref ? `@${ref}` : ''));
         if (!target) throw new Error('Invalid repository format. Use owner/repo or owner/repo@branch.');
 
-        const cloned = await cloneRepoAsync(target, {});
+        const cloned = await cloneRepoAsync(target, { signal: ac.signal });
         cleanup = cloned.cleanup;
-        if (aborted) throw new Error('Scan timed out during clone — repository may be too large. Use the CLI.');
 
         let result;
         try {
@@ -54,8 +56,6 @@ async function runJob(job) {
         } catch (pipeErr) {
             throw new Error(pipeErr.message.split('\n')[0]);
         }
-
-        if (aborted) throw new Error('Scan timed out during analysis.');
 
         cleanup();
         cleanup = null;
@@ -75,6 +75,10 @@ async function runJob(job) {
 
         await markScanDone(jobId, appName, sbomId);
 
+        const elapsed = Date.now() - startedAt;
+        const components = result.stats?.totalComponents ?? 0;
+        logJob({ job: jobId, org: orgId, repo, status: 'done', elapsed: `${elapsed}ms`, components, worker: WORKER_ID });
+
         sendScanCompleteEmail(orgId, appName, result.stats, cloned.commitSha).catch(() => {});
 
         if (purlToCompId.size > 0) {
@@ -85,15 +89,16 @@ async function runJob(job) {
                 })
                 .catch(err => console.error('[worker/osv]', err.message));
         }
-
-        console.log(`[worker] job=${jobId} done app=${appName}`);
     } catch (err) {
         if (cleanup) { try { cleanup(); } catch {} }
-        const msg = aborted
+        const elapsed = Date.now() - startedAt;
+        const isTimeout = ac.signal.aborted || /timed out|timeout/i.test(err.message);
+        const status = isTimeout ? 'timed_out' : 'failed';
+        const reason = isTimeout
             ? 'Scan timed out — repository may be too large. Use the CLI for large repos.'
             : err.message;
-        await markScanFailed(jobId, msg);
-        console.error(`[worker] job=${jobId} failed:`, msg);
+        await markScanFailed(jobId, reason);
+        logJob({ job: jobId, org: orgId, repo, status, elapsed: `${elapsed}ms`, reason: `"${reason.slice(0, 120)}"`, worker: WORKER_ID });
     } finally {
         clearTimeout(timeoutHandle);
     }
@@ -113,7 +118,7 @@ async function poll() {
 
         const job = await claimNextScanJob(WORKER_ID);
         if (job) {
-            console.log(`[worker] claimed job=${job.id} repo=${job.repo}`);
+            logJob({ job: job.id, org: job.org_id, repo: job.repo, status: 'claimed', worker: WORKER_ID });
             await runJob(job);
         }
     } catch (err) {
