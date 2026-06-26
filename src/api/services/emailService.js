@@ -97,10 +97,10 @@ async function sendScanCompleteEmail(orgId, appName, stats, commitSha) {
             '<tr><td colspan="2" style="padding:10px 20px;background:#161b22;border-top:1px solid #30363d;color:#58a6ff;font-weight:600">AI Bill of Materials</td></tr>',
             '<tr><td style="padding:5px 20px;color:#8b949e">AI models detected</td><td style="padding:5px 20px;text-align:right">' + (stats.aiModels ?? 0) + '</td></tr>',
             '<tr><td style="padding:5px 20px;color:#8b949e">AI-BOM threats</td><td style="padding:5px 20px;text-align:right;color:' + threatColor + '">' + (stats.aiThreats ?? 0) + '</td></tr>',
-            stats.leastAgencyScore != null ? '<tr><td style="padding:5px 20px;color:#8b949e">Least Agency Score</td><td style="padding:5px 20px;text-align:right">' + stats.leastAgencyScore + '/100</td></tr>' : '',
+            stats.leastAgencyScore !== null ? '<tr><td style="padding:5px 20px;color:#8b949e">Least Agency Score</td><td style="padding:5px 20px;text-align:right">' + stats.leastAgencyScore + '/100</td></tr>' : '',
         ].join('') : '';
 
-        const qualityRow = quality != null
+        const qualityRow = quality !== null
             ? '<tr><td style="padding:5px 20px;color:#8b949e">Quality score</td><td style="padding:5px 20px;text-align:right">' + quality + '/100</td></tr>'
             : '';
 
