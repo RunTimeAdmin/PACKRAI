@@ -9,7 +9,7 @@ const { osvEnrichAsync }       = require('../services/postIngestAnalysis');
 const { sendVulnAlertIfNew }   = require('../services/emailService');
 const { validateCycloneDX }    = require('../../generators/cyclonedx');
 const { applyKEVAfterIngest }  = require('../../kev');
-const { PLAN_LIMITS }          = require('../stripe');
+const { PLAN_LIMITS, resolveEffectivePlan } = require('../stripe');
 
 const router = express.Router();
 
@@ -18,9 +18,9 @@ router.post('/api/v1/ingest', ingestLimiter, requireScope('sbom:ingest'), async 
 
     try {
         const { rows: orgRows } = await db.query(
-            `SELECT plan, subscription_status FROM organizations WHERE id = $1`, [req.org.id]
+            `SELECT plan, subscription_status, trial_ends_at FROM organizations WHERE id = $1`, [req.org.id]
         );
-        const plan   = orgRows[0]?.plan || 'free';
+        const plan   = resolveEffectivePlan(orgRows[0]?.plan, orgRows[0]?.trial_ends_at);
         const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
 
         const { rows: appRows } = await db.query(

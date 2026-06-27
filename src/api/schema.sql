@@ -10,12 +10,13 @@ CREATE TABLE organizations (
     -- Legacy org:admin key; prefer api_keys table for new issuance.
     api_key     TEXT        UNIQUE NOT NULL,
     vuln_alerts            BOOLEAN NOT NULL DEFAULT TRUE,
-    plan                   TEXT    NOT NULL DEFAULT 'free'
-                                   CHECK (plan IN ('free','starter','team','business','enterprise')),
+    plan                   TEXT    NOT NULL DEFAULT 'trial'
+                                   CHECK (plan IN ('free','trial','starter','team','business','enterprise')),
     stripe_customer_id     TEXT    UNIQUE,
     stripe_subscription_id TEXT    UNIQUE,
     subscription_status    TEXT,   -- active | trialing | past_due | canceled | unpaid
     current_period_end     TIMESTAMPTZ,
+    trial_ends_at          TIMESTAMPTZ,
     created_at             TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -7,6 +7,7 @@ const { scanLimiter }          = require('../middleware/rateLimits');
 const { enqueueScanJob, countActiveScansForOrg } = require('../services/scanQueue');
 const { parseGitHubTarget }    = require('../../github');
 const scanJobsRepo             = require('../repositories/scanJobsRepo');
+const { PLAN_LIMITS, resolveEffectivePlan } = require('../stripe');
 
 const router = express.Router();
 
@@ -27,6 +28,23 @@ router.post('/api/v1/scan', scanLimiter, requireScope('sbom:ingest'), async (req
     }
 
     try {
+        const { rows: orgRows } = await db.query(
+            `SELECT plan, trial_ends_at FROM organizations WHERE id = $1`, [req.org.id]
+        );
+        const plan   = resolveEffectivePlan(orgRows[0]?.plan, orgRows[0]?.trial_ends_at);
+        const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+
+        const { rows: scanRows } = await db.query(
+            `SELECT COUNT(*) AS cnt FROM scan_jobs WHERE org_id = $1 AND created_at >= date_trunc('month', NOW())`,
+            [req.org.id]
+        );
+        if (Number(scanRows[0].cnt) >= limits.scansPerMonth) {
+            return res.status(402).json({
+                error: `Monthly scan limit reached (${limits.scansPerMonth.toLocaleString()} for ${plan} plan). Upgrade or wait until next month.`,
+                upgrade: true,
+            });
+        }
+
         const active = await countActiveScansForOrg(req.org.id);
         if (active >= 2) {
             return res.status(429).json({ error: 'You already have active scans running. Wait for them to complete.' });

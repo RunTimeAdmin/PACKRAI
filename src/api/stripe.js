@@ -22,11 +22,20 @@ function priceIdToPlan(priceId) {
 }
 
 const PLAN_LIMITS = {
-    free:       { apps: 1,        scansPerMonth: 50,     seats: 1,        retentionDays: 7   },
-    starter:    { apps: 10,       scansPerMonth: 500,    seats: 1,        retentionDays: 30  },
-    team:       { apps: 50,       scansPerMonth: 5000,   seats: 5,        retentionDays: 180 },
-    business:   { apps: 250,      scansPerMonth: 25000,  seats: 20,       retentionDays: 365 },
+    free:       { apps: 1,        scansPerMonth: 50,       seats: 1,        retentionDays: 7   },
+    trial:      { apps: 10,       scansPerMonth: 500,      seats: 1,        retentionDays: 30  },
+    starter:    { apps: 10,       scansPerMonth: 500,      seats: 1,        retentionDays: 30  },
+    team:       { apps: 50,       scansPerMonth: 5000,     seats: 5,        retentionDays: 180 },
+    business:   { apps: 250,      scansPerMonth: 25000,    seats: 20,       retentionDays: 365 },
     enterprise: { apps: Infinity, scansPerMonth: Infinity, seats: Infinity, retentionDays: Infinity },
 };
 
-module.exports = { stripe, priceIdToPlan, PLAN_LIMITS };
+// Returns the effective plan, collapsing an expired trial to 'free'.
+function resolveEffectivePlan(plan, trialEndsAt) {
+    if (plan === 'trial') {
+        return (trialEndsAt && new Date(trialEndsAt) > new Date()) ? 'trial' : 'free';
+    }
+    return plan || 'free';
+}
+
+module.exports = { stripe, priceIdToPlan, PLAN_LIMITS, resolveEffectivePlan };

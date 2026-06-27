@@ -3,24 +3,27 @@
 const express = require('express');
 const db      = require('../db');
 const { requireScope }         = require('../middleware/auth');
-const { stripe, priceIdToPlan, PLAN_LIMITS } = require('../stripe');
+const { stripe, priceIdToPlan, PLAN_LIMITS, resolveEffectivePlan } = require('../stripe');
 
 const router = express.Router();
 
 router.get('/api/v1/billing', requireScope('org:admin'), async (req, res) => {
     try {
         const { rows } = await db.query(
-            `SELECT plan, subscription_status, current_period_end, stripe_customer_id
+            `SELECT plan, subscription_status, current_period_end, stripe_customer_id, trial_ends_at
              FROM organizations WHERE id = $1`,
             [req.org.id]
         );
-        const org = rows[0];
+        const org           = rows[0];
+        const effectivePlan = resolveEffectivePlan(org.plan, org.trial_ends_at);
         res.json({
             plan:               org.plan || 'free',
+            effective_plan:     effectivePlan,
+            trial_ends_at:      org.trial_ends_at || null,
             status:             org.subscription_status || null,
             current_period_end: org.current_period_end || null,
             has_payment_method: !!org.stripe_customer_id,
-            limits:             PLAN_LIMITS[org.plan] || PLAN_LIMITS.free,
+            limits:             PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free,
         });
     } catch (err) {
         console.error('[billing/get]', err.message);
