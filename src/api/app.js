@@ -49,6 +49,8 @@ app.use(require('./routes/ingest'));
 app.use(require('./routes/scans'));
 app.use(require('./routes/vex'));
 app.use(require('./routes/keys'));
+app.use(require('./routes/session'));
+app.use(require('./routes/githubAuth'));
 app.use(require('./routes/billing'));
 app.use(require('./routes/admin'));
 

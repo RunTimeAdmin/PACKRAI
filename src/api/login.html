@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — SBOMix</title>
+<style>
+*{box-sizing:border-box}
+body{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:40px;max-width:400px;width:100%;text-align:center}
+.logo{font-size:22px;font-weight:700;color:#e6edf3;text-decoration:none;display:block;margin-bottom:24px}
+.logo span{color:#58a6ff}
+h1{font-size:20px;margin:0 0 24px}
+.gh-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#f6f8fa;color:#1f2328;padding:11px;border-radius:6px;font-weight:600;font-size:14px;text-decoration:none;border:1px solid #d0d7de;transition:background .15s}
+.gh-btn:hover{background:#e9ebec}
+.gh-btn svg{flex-shrink:0}
+.divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:#484f58;font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#30363d}
+input{width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px 12px;color:#e6edf3;font-size:14px;outline:none;transition:border-color .15s}
+input:focus{border-color:#58a6ff}
+.btn{width:100%;background:#238636;color:#fff;padding:11px;border-radius:6px;font-weight:600;font-size:14px;border:none;cursor:pointer;margin-top:12px;transition:background .15s}
+.btn:hover:not(:disabled){background:#2ea043}
+.btn:disabled{opacity:.6;cursor:default}
+.msg{margin-top:16px;padding:10px 14px;border-radius:6px;font-size:13px;display:none;text-align:left}
+.ok{background:#1f4722;color:#3fb950}
+.err{background:#4a1919;color:#f85149}
+.links{margin-top:24px;font-size:13px;color:#8b949e}
+.links a{color:#58a6ff;text-decoration:none}
+.links a:hover{text-decoration:underline}
+.error-banner{background:#4a1919;color:#f85149;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="card">
+  <a class="logo" href="/">SBOMix</a>
+  <h1>Sign in</h1>
+  <div id="error-banner" class="error-banner" style="display:none"></div>
+
+  <a href="/auth/github" class="gh-btn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="#1f2328" aria-hidden="true">
+      <path d="M12 0C5.37 0 0 5.373 0 12c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.744.084-.73.084-.73 1.205.085 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.762-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.468-2.38 1.235-3.22-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.3 1.23A11.51 11.51 0 0112 5.803c1.02.005 2.047.137 3.006.403 2.29-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.91 1.235 3.22 0 4.61-2.807 5.625-5.48 5.92.43.372.814 1.103.814 2.222 0 1.606-.015 2.9-.015 3.293 0 .322.216.694.825.576C20.565 21.796 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+    </svg>
+    Sign in with GitHub
+  </a>
+
+  <div class="divider">or</div>
+
+  <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+  <button class="btn" id="btn">Send magic link</button>
+  <div class="msg" id="msg"></div>
+  <div class="links">
+    <a href="/register">Create account</a> &nbsp;·&nbsp; <a href="/recover">Recover API key</a>
+  </div>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+const err    = params.get('error');
+if (err) {
+  const banner = document.getElementById('error-banner');
+  banner.style.display = 'block';
+  banner.textContent = err === 'expired'
+    ? 'That login link has expired or already been used. Request a new one below.'
+    : err === 'invalid'
+    ? 'Invalid login link.'
+    : err === 'github_token'
+    ? 'GitHub sign-in failed — please try again.'
+    : 'Something went wrong — please try again.';
+}
+
+document.getElementById('btn').addEventListener('click', send);
+document.getElementById('email').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+
+async function send() {
+  const email = document.getElementById('email').value.trim();
+  const msg   = document.getElementById('msg');
+  const btn   = document.getElementById('btn');
+  msg.className = 'msg';
+  msg.style.display = 'none';
+  if (!email) {
+    msg.className = 'msg err';
+    msg.textContent = 'Please enter your email.';
+    msg.style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    const r = await fetch('/api/v1/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email }),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      msg.className = 'msg ok';
+      msg.textContent = j.message;
+    } else {
+      msg.className = 'msg err';
+      msg.textContent = j.error || 'Request failed.';
+    }
+    msg.style.display = 'block';
+  } catch {
+    msg.className = 'msg err';
+    msg.textContent = 'Network error — please try again.';
+    msg.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Send magic link';
+}
+</script>
+</body>
+</html>
