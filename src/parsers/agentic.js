@@ -174,13 +174,7 @@ function detectAgenticContext(root, { maxDepth = 4 } = {}) {
     const mcpServers = [];
     for (const f of mcpFiles) mcpServers.push(...parseMCPConfig(f));
 
-    const prompts = promptFiles.map(fp => ({
-        path:    fp,
-        name:    path.basename(fp),
-        sha256:  sha256File(fp),
-        snippet: readSnippet(fp),
-        sizeBytes: safeSize(fp),
-    }));
+    const prompts = promptFiles.map(processPromptFile);
 
     // Aggregate execution boundary across all MCP servers (Least Agency view)
     const boundaries = summarizeBoundaries(mcpServers);
@@ -210,5 +204,26 @@ function summarizeBoundaries(servers) {
 }
 
 function safeSize(fp) { try { return fs.statSync(fp).size; } catch { return null; } }
+
+function processPromptFile(fp) {
+    try {
+        const fd  = fs.openSync(fp, 'r');
+        const buf = Buffer.allocUnsafe(MAX_PROMPT_BYTES);
+        let n;
+        try { n = fs.readSync(fd, buf, 0, MAX_PROMPT_BYTES, 0); }
+        finally { fs.closeSync(fd); }
+        const h = crypto.createHash('sha256');
+        h.update(buf.subarray(0, n));
+        return {
+            path:      fp,
+            name:      path.basename(fp),
+            sha256:    h.digest('hex'),
+            snippet:   buf.toString('utf8', 0, Math.min(n, 400)).replace(/\s+/g, ' ').trim(),
+            sizeBytes: safeSize(fp),
+        };
+    } catch {
+        return { path: fp, name: path.basename(fp), sha256: null, snippet: '', sizeBytes: null };
+    }
+}
 
 module.exports = { detectAgenticContext, parseMCPConfig, sha256File };
