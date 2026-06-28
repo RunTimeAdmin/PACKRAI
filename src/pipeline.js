@@ -59,7 +59,7 @@ async function generateFromDirectory(dir, opts = {}) {
     const lockFiles = detect(dir, { recursive: opts.recursive !== false });
     if (lockFiles.length === 0) {
         throw new Error(`No supported lock files found in ${dir}.\n`
-            + 'Expected one of: package-lock.json, yarn.lock, poetry.lock, Pipfile.lock, Cargo.lock, go.mod');
+            + 'Expected one of: package-lock.json, yarn.lock, pnpm-lock.yaml, poetry.lock, Pipfile.lock, requirements.txt, Cargo.lock, go.mod, pom.xml, gradle.lockfile, packages.lock.json, Gemfile.lock, composer.lock, Package.resolved, pubspec.lock');
     }
 
     // 2. Parse all lock files

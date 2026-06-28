@@ -1,0 +1,14 @@
+# AI/ML fixture for sbomix smoke tests
+torch==2.2.1
+transformers==4.38.2
+diffusers==0.26.3
+accelerate==0.27.2
+safetensors==0.4.2
+huggingface-hub==0.21.3
+tokenizers==0.15.2
+datasets==2.17.1
+peft==0.9.0
+langchain==0.1.9
+openai==1.12.0
+anthropic==0.18.1
+numpy==1.26.4
