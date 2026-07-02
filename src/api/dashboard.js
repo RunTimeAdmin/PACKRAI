@@ -729,6 +729,44 @@ document.querySelectorAll('.sbom-dl-item').forEach(item => {
   });
 });
 
+// ── Agent Trust Report download ─────────────────────────────────────────────
+
+const atrDlBtn  = document.getElementById('atr-dl-btn');
+const atrDlMenu = document.getElementById('atr-dl-menu');
+
+atrDlBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  atrDlMenu.style.display = atrDlMenu.style.display === 'none' ? 'block' : 'none';
+});
+
+document.addEventListener('click', () => { atrDlMenu.style.display = 'none'; });
+
+document.querySelectorAll('.atr-dl-item').forEach(item => {
+  item.addEventListener('click', async () => {
+    atrDlMenu.style.display = 'none';
+    const fmt = item.dataset.fmt;
+    const url = `/api/v1/apps/${encodeURIComponent(currentApp)}/agent-trust-report?format=${fmt}`;
+    try {
+      const r = await fetch(url, { credentials: 'same-origin' });
+      if (r.status === 404) {
+        const err = await r.json();
+        alert(err.error || 'No SBOM found for this app yet.');
+        return;
+      }
+      if (!r.ok) { alert('Agent Trust Report generation failed.'); return; }
+      const blob = await r.blob();
+      const ext  = fmt === 'html' ? 'html' : 'json';
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = `${currentApp}-agent-trust-report.${ext}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      alert('Agent Trust Report generation failed.');
+    }
+  });
+});
+
 // ── Scan jobs ─────────────────────────────────────────────────────────────────
 
 let scanPollTimer = null;

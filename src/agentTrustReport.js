@@ -149,6 +149,11 @@ function buildAgentTrustReport(pipelineResult, meta = {}) {
             detected: signing.hasSigningSurface,
             matches: signing.matches,
             envKeyNames: envKeys.map((e) => e.variable),
+            // Env scanning needs filesystem access to the source tree. The CLI has
+            // it; a report built server-side from stored SBOM data does not. An
+            // empty envKeyNames array must not be read as "no keys found" when it
+            // actually means "not checked" — that's a false-negative risk.
+            envScanPerformed: !!meta.scanDir,
             statement: signing.hasSigningSurface
                 ? 'This deployment contains components capable of signing transactions. A compromise of any Critical-flagged item above could result in irreversible loss of funds.'
                 : 'No known signing or wallet libraries detected in the scanned dependency tree.',
@@ -279,7 +284,11 @@ ${report.signingSurface.matches.length ? `<table style="margin-top:12px">
   <thead><tr><th>Package</th><th>Version</th><th>Ecosystem</th><th>Category</th><th>Scope</th></tr></thead>
   <tbody>${signingRows}</tbody>
 </table>` : ''}
-${report.signingSurface.envKeyNames.length ? `<p style="margin-top:16px;color:#8b949e;font-size:12px">Env variable names referencing key material (values never read):</p><div style="margin-top:6px">${envRows}</div>` : ''}
+${report.signingSurface.envScanPerformed
+    ? (report.signingSurface.envKeyNames.length
+        ? `<p style="margin-top:16px;color:#8b949e;font-size:12px">Env variable names referencing key material (values never read):</p><div style="margin-top:6px">${envRows}</div>`
+        : `<p style="margin-top:16px;color:#3fb950;font-size:12px">No key-material env variable names found.</p>`)
+    : `<p style="margin-top:16px;color:#d29922;font-size:12px">Env file scan not performed — this report was generated server-side without access to the source tree. Run the CLI locally (\`npx sbomix . --profile crypto-agent\`) for full signing-surface coverage.</p>`}
 
 <h2>Compliance Mapping</h2>
 ${report.complianceMapping.euAiAct.map((c) => `<p style="margin-bottom:6px"><strong>${esc(c.article)}</strong> — ${esc(c.note)}</p>`).join('')}

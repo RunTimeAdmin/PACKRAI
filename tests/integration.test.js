@@ -246,3 +246,95 @@ test('ingest: duplicate app name reuses same app row', async (t) => {
 
     assert.strictEqual(appId1, appId2, 'same app name reuses same app row');
 });
+
+// ── Agent Trust Report (server-side, from stored SBOM data) ──────────────────
+
+test('agent-trust-report: repo layer round-trips a real ingested SBOM into a working report', async (t) => {
+    if (!dbAvailable) return t.skip('Postgres unavailable');
+    const { orgId } = await createTestOrg();
+    const { executeIngestTx } = require('../src/api/services/ingestService');
+    const appsRepo  = require('../src/api/repositories/appsRepo');
+    const sbomsRepo = require('../src/api/repositories/sbomsRepo');
+    const { buildAgentTrustReport, renderAgentTrustReportHTML } = require('../src/agentTrustReport');
+
+    const cyclonedx = {
+        bomFormat: 'CycloneDX', specVersion: '1.6', version: 1,
+        metadata: { component: { purl: 'app-atr-test' } },
+        components: [
+            { type: 'library', name: 'ethers', version: '6.13.0', purl: 'pkg:npm/ethers@6.13.0', hashes: [] },
+        ],
+        dependencies: [{ ref: 'app-atr-test', dependsOn: ['pkg:npm/ethers@6.13.0'] }],
+        vulnerabilities: [],
+    };
+    const aibom = {
+        schemaVersion: '1.0',
+        summary: { aiModels: 0, apiProviders: 0, frameworks: 0, mcpServers: 1, leastAgencyScore: 70, criticalThreats: 0, highThreats: 1 },
+        threats: [{ id: 'AI-010', severity: 'MEDIUM' }],
+        agentic: {
+            mcpServers: [{
+                name: 'filesystem', transport: 'stdio', requiresAuth: false,
+                authority: { shellAccess: false, unpinnedSource: true, dangerFlags: false, broadFilesystem: true },
+                sourceFile: 'mcp.json',
+            }],
+            prompts: [],
+            boundaries: { toolServers: 1, leastAgencyScore: 70 },
+        },
+    };
+
+    const client = await db.pool.connect();
+    let sbomId;
+    try {
+        await client.query('BEGIN');
+        ({ sbomId } = await executeIngestTx(client, orgId, 'atr-test-app', {
+            version: '1.0.0', commit: 'deadbee', branch: 'main',
+            cyclonedx, spdx: null, aibom,
+            stats: { totalComponents: 1, vulnerabilities: 0, critical: 0, qualityScore: 80, ecosystems: ['npm'] },
+        }));
+        await client.query('COMMIT');
+    } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+    } finally {
+        client.release();
+    }
+
+    const sbomRow = await appsRepo.getLatestSbomForAgentTrustReport(db, orgId, 'atr-test-app');
+    assert.ok(sbomRow, 'sbom row found');
+    assert.strictEqual(sbomRow.id, sbomId);
+    assert.deepStrictEqual(sbomRow.ecosystems, ['npm']);
+    assert.strictEqual(typeof sbomRow.cyclonedx, 'object', 'cyclonedx stored/retrieved as object, not string');
+    assert.strictEqual(typeof sbomRow.aibom, 'object', 'aibom stored/retrieved as object, not string');
+    assert.strictEqual(sbomRow.aibom.agentic.mcpServers[0].name, 'filesystem');
+
+    const components = await sbomsRepo.getComponents(db, sbomId, orgId);
+    assert.strictEqual(components.length, 1);
+    assert.strictEqual(components[0].name, 'ethers');
+
+    // Mirror the route's mapping (src/api/routes/apps.js toAgentTrustPipelineResult)
+    const summary = sbomRow.aibom.summary;
+    const pipelineResult = {
+        cyclonedx: sbomRow.cyclonedx,
+        aiBom: sbomRow.aibom,
+        components,
+        stats: {
+            ecosystems: sbomRow.ecosystems,
+            aiModels: summary.aiModels, aiApiProviders: summary.apiProviders, aiFrameworks: summary.frameworks,
+            aiThreats: sbomRow.aibom.threats.length, aiCritical: summary.criticalThreats, aiHigh: summary.highThreats,
+        },
+    };
+
+    const report = buildAgentTrustReport(pipelineResult, { name: 'atr-test-app', version: sbomRow.version, commitSha: sbomRow.commit_sha });
+
+    assert.strictEqual(report.signingSurface.detected, true);
+    assert.strictEqual(report.signingSurface.matches[0].name, 'ethers');
+    assert.strictEqual(report.signingSurface.envScanPerformed, false, 'no filesystem access server-side');
+    assert.strictEqual(report.mcpToolSurface.serverCount, 1);
+    assert.strictEqual(report.mcpToolSurface.servers[0].name, 'filesystem');
+    assert.strictEqual(report.execSummary.leastAgencyScore, 70);
+    assert.ok(report.integrity.manifestSha256.match(/^[0-9a-f]{64}$/));
+
+    const html = renderAgentTrustReportHTML(report);
+    assert.match(html, /ethers/);
+    assert.match(html, /filesystem/);
+    assert.match(html, /Env file scan not performed/, 'HTML must not imply a clean env scan that never ran');
+});

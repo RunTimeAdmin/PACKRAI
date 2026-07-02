@@ -5,8 +5,32 @@ const db        = require('../db');
 const { requireScope }              = require('../middleware/auth');
 const { diffComponents, diffVulns } = require('../../diff');
 const { explainVulnRows }           = require('../../explain');
+const { buildAgentTrustReport, renderAgentTrustReportHTML } = require('../../agentTrustReport');
 const appsRepo  = require('../repositories/appsRepo');
 const sbomsRepo = require('../repositories/sbomsRepo');
+
+// Adapt a stored SBOM row (cyclonedx/aibom JSONB + a few sboms columns) into
+// the { cyclonedx, aiBom, components, stats } shape buildAgentTrustReport
+// expects — the same shape generateFromDirectory() produces for the CLI.
+// aiBom.summary field names differ from pipeline.js's stats (e.g.
+// apiProviders -> aiApiProviders); map them explicitly rather than assuming.
+function toAgentTrustPipelineResult(sbomRow, components) {
+    const summary = sbomRow.aibom?.summary || {};
+    return {
+        cyclonedx: sbomRow.cyclonedx,
+        aiBom: sbomRow.aibom || null,
+        components,
+        stats: {
+            ecosystems:     sbomRow.ecosystems || [],
+            aiModels:       summary.aiModels ?? 0,
+            aiApiProviders: summary.apiProviders ?? 0,
+            aiFrameworks:   summary.frameworks ?? 0,
+            aiThreats:      sbomRow.aibom?.threats?.length ?? 0,
+            aiCritical:     summary.criticalThreats ?? 0,
+            aiHigh:         summary.highThreats ?? 0,
+        },
+    };
+}
 
 const router = express.Router();
 
@@ -76,6 +100,38 @@ router.get('/api/v1/apps/:name/sbom/download', requireScope('sbom:read'), async 
         res.json(row.cyclonedx);
     } catch (err) {
         console.error('[sbom/download]', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/api/v1/apps/:name/agent-trust-report', requireScope('sbom:read'), async (req, res) => {
+    const format = (req.query.format || 'json').toLowerCase();
+    if (!['json', 'html'].includes(format)) {
+        return res.status(400).json({ error: 'format must be json or html' });
+    }
+    try {
+        const sbomRow = await appsRepo.getLatestSbomForAgentTrustReport(db, req.org.id, req.params.name);
+        if (!sbomRow) return res.status(404).json({ error: 'App not found' });
+
+        const components = await sbomsRepo.getComponents(db, sbomRow.id, req.org.id);
+        const pipelineResult = toAgentTrustPipelineResult(sbomRow, components);
+        // No meta.scanDir here — this report is built from stored data, not a live
+        // checkout, so env-file scanning is honestly marked unperformed rather than
+        // silently reported as clean. See agentTrustReport.js.
+        const report = buildAgentTrustReport(pipelineResult, {
+            name: req.params.name, version: sbomRow.version, commitSha: sbomRow.commit_sha, scanTarget: req.params.name,
+        });
+
+        if (format === 'html') {
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${req.params.name}-agent-trust-report.html"`);
+            return res.send(renderAgentTrustReportHTML(report));
+        }
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="${req.params.name}-agent-trust-report.json"`);
+        res.json(report);
+    } catch (err) {
+        console.error('[agent-trust-report]', err.message);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

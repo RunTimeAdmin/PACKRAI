@@ -161,6 +161,12 @@ describe('agentTrustReport', () => {
         assert.match(report.complianceMapping.disclaimer, /not a certification/i);
     });
 
+    test('envScanPerformed is false when no scanDir is provided (server-side report)', () => {
+        const report = buildAgentTrustReport(fakePipelineResult('55555555-5555-5555-5555-555555555555'), { name: 'x' });
+        assert.equal(report.signingSurface.envScanPerformed, false);
+        assert.deepEqual(report.signingSurface.envKeyNames, []);
+    });
+
     test('canonicalSha256 ignores key order', () => {
         assert.equal(canonicalSha256({ a: 1, b: 2 }), canonicalSha256({ b: 2, a: 1 }));
     });

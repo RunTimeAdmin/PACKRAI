@@ -57,6 +57,18 @@ async function getLatestSbomForDownload(db, orgId, appName) {
     return rows[0] || null;
 }
 
+async function getLatestSbomForAgentTrustReport(db, orgId, appName) {
+    const { rows } = await db.query(
+        `SELECT s.id, s.cyclonedx, s.aibom, s.ecosystems, s.version, s.commit_sha
+         FROM sboms s
+         JOIN applications a ON a.id = s.app_id
+         WHERE a.org_id = $1 AND a.name = $2
+         ORDER BY s.created_at DESC LIMIT 1`,
+        [orgId, appName]
+    );
+    return rows[0] || null;
+}
+
 async function getVulns(db, orgId, appId) {
     const { rows } = await db.query(
         `SELECT v.osv_id, v.cve_id, v.severity, v.cvss_score,
@@ -198,6 +210,7 @@ module.exports = {
     findByName,
     getLatestSbomMeta,
     getLatestSbomForDownload,
+    getLatestSbomForAgentTrustReport,
     getVulns,
     getComponents,
     getVulnsForExplain,

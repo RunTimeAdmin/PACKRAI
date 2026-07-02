@@ -35,6 +35,10 @@ inputs:
     description: 'Skip OSV vulnerability enrichment (faster, no network required)'
     required: false
     default: 'false'
+  profile:
+    description: 'Report profile: crypto-agent — adds an Agent Trust Report (MCP tool surface, signing surface, known-bad match) for deployments that hold signing keys'
+    required: false
+    default: ''
   api-url:
     description: 'SBOMix central API endpoint — push SBOMs for org-wide tracking'
     required: false
@@ -72,6 +76,12 @@ outputs:
   ai-threat-count:
     description: 'Number of AI/ML threats detected'
     value: ${{ steps.run.outputs.ai-threat-count }}
+  agent-trust-report-json-path:
+    description: 'Path to the Agent Trust Report JSON manifest (only present with profile: crypto-agent)'
+    value: ${{ steps.run.outputs.agent-trust-report-json-path }}
+  agent-trust-report-html-path:
+    description: 'Path to the Agent Trust Report HTML (only present with profile: crypto-agent)'
+    value: ${{ steps.run.outputs.agent-trust-report-html-path }}
 
 runs:
   using: 'composite'
@@ -94,12 +104,14 @@ runs:
         SCAN_AIBOM_FORMAT: ${{ inputs.aibom-format }}
         SCAN_OUT: ${{ inputs.output-dir }}
         SKIP_VULNS: ${{ inputs.skip-vulns }}
+        SCAN_PROFILE: ${{ inputs.profile }}
       run: |
         set -e
 
         SBOMIX="node $GITHUB_ACTION_PATH/bin/sbomix.js"
         ARGS="$SCAN_DIR --format $SCAN_FORMAT --aibom-format $SCAN_AIBOM_FORMAT --out $SCAN_OUT"
         [ "$SKIP_VULNS" = "true" ] && ARGS="$ARGS --no-vulns"
+        [ -n "$SCAN_PROFILE" ] && ARGS="$ARGS --profile $SCAN_PROFILE"
 
         $SBOMIX $ARGS --json > /tmp/sbomix-summary.json
 
@@ -121,6 +133,11 @@ runs:
         elif [ -f "$AIBOM_Y" ]; then
           echo "aibom-path=$AIBOM_Y" >> "$GITHUB_OUTPUT"
         fi
+
+        ATR_J="${{ inputs.output-dir }}/agent-trust-report.json"
+        ATR_H="${{ inputs.output-dir }}/agent-trust-report.html"
+        [ -f "$ATR_J" ] && echo "agent-trust-report-json-path=$ATR_J" >> "$GITHUB_OUTPUT"
+        [ -f "$ATR_H" ] && echo "agent-trust-report-html-path=$ATR_H" >> "$GITHUB_OUTPUT"
 
     - name: Push to SBOMix API
       if: inputs.api-url != '' && inputs.api-key != ''
@@ -183,6 +200,23 @@ runs:
             rows.push(`| AI/ML models | ${s.aiModels} |`);
             rows.push(`| AI threats | ${s.aiThreats || 0} |`);
           }
+
+          let atrSection = '';
+          const atrPath = '${{ inputs.output-dir }}/agent-trust-report.json';
+          if (fs.existsSync(atrPath)) {
+            const atr = JSON.parse(fs.readFileSync(atrPath));
+            const es  = atr.execSummary;
+            const critFlags = es.flags.filter((f) => f.severity === 'Critical').length;
+            const atrBadge  = critFlags > 0 ? '🔴' : es.flags.length > 0 ? '🟡' : '🟢';
+            atrSection = [
+              '',
+              `### ${atrBadge} Agent Trust Report`,
+              `MCP servers: **${es.mcpServersDetected}** · Signing surface: **${es.signingSurfaceDetected ? 'yes' : 'no'}** · Least Agency Score: **${es.leastAgencyScore ?? 'n/a'}** · Flags: **${es.flags.length}**`,
+              '',
+              'Presence detection, not a code audit. See the report artifact for details.',
+            ].join('\n');
+          }
+
           const body = [
             `## ${badge} SBOMix SBOM — \`${sha7}\``,
             '',
@@ -195,6 +229,7 @@ runs:
               : s.vulnerabilities > 0
               ? `> ${s.vulnerabilities} vulnerabilities found — none critical. Check the SBOM artifact for details.`
               : '> ✅ No known vulnerabilities found.',
+            atrSection,
           ].join('\n');
           await github.rest.issues.createComment({
             owner: context.repo.owner, repo: context.repo.repo,
