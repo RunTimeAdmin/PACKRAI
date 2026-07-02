@@ -53,7 +53,7 @@ EXPLAIN_API_KEY=sk-ant-... npx sbomix . --explain
 # AI explain with CISA KEV context: flags actively-exploited vulns
 EXPLAIN_API_KEY=sk-ant-... KATZILLA_API_KEY=kz_... npx sbomix . --explain
 
-# Self-hosted via Ollama (no data leaves your machine)
+# Self-hosted via Ollama (no vulnerability data sent to a cloud LLM)
 EXPLAIN_BASE_URL=http://localhost:11434/v1 EXPLAIN_MODEL=llama3.2 npx sbomix . --explain
 ```
 
@@ -109,7 +109,7 @@ flowchart LR
     output -->|ingest| platform
 ```
 
-Lock files are the resolved dependency graph: authoritative, deterministic, and exact. SBOMix reads them directly instead of walking the filesystem, which is why it's 60–187× faster than Syft and Trivy on equivalent repos.
+Lock files are the resolved dependency graph: authoritative, deterministic, and exact. SBOMix reads them directly instead of walking the filesystem, which is why it returns in milliseconds where filesystem scanners take tens of seconds (60–187× in the benchmarks below, which run Syft and Trivy via Docker).
 
 ---
 
@@ -183,7 +183,7 @@ The AI-BOM captures everything an auditor or regulator needs to assess AI supply
 - **EU AI Act Annex IV fields**: purpose, intended use, capability description, risk classification
 - **ISO 42001 control mapping**: 8 Annex A controls mapped to BOM evidence, with gap identification
 - **Agentic context**: MCP server inventory, tool authority scope, and a **Least Agency Score** (0–100) measuring agent blast radius
-- **PQC-signed hash chain**: tamper-evident lineage using SHAKE-256 (post-quantum ready)
+- **Tamper-evident lineage**: a SHAKE-256 hash chain over model and data lineage, with an optional Ed25519 or post-quantum (ML-DSA) signature when you supply signing keys
 
 **Sample output**
 
@@ -291,7 +291,7 @@ Requires `KATZILLA_API_KEY` ([katzilla.dev](https://katzilla.dev)). The catalog 
 # Default: Anthropic Claude Haiku (EU/US data residency)
 EXPLAIN_API_KEY=sk-ant-... npx sbomix . --explain
 
-# Self-hosted via Ollama (no data leaves your machine)
+# Self-hosted via Ollama (no vulnerability data sent to a cloud LLM)
 EXPLAIN_BASE_URL=http://localhost:11434/v1 EXPLAIN_MODEL=llama3.2 npx sbomix . --explain
 ```
 After scanning, sends your vulnerability list to the configured AI provider and returns:
@@ -300,7 +300,7 @@ After scanning, sends your vulnerability list to the configured AI provider and 
 - Specific mitigation guidance for vulns with no fix available
 - CISA KEV callouts for actively-exploited entries
 
-Default provider is **Anthropic Claude Haiku** (vulnerability data stays in EU/US jurisdiction). For air-gapped or self-hosted deployments, use Ollama. Any OpenAI-compatible endpoint is supported via `EXPLAIN_BASE_URL` + `EXPLAIN_API_KEY` + `EXPLAIN_MODEL`.
+Default provider is **Anthropic Claude Haiku** (vulnerability data stays in EU/US jurisdiction). For self-hosted or offline use, run Ollama locally; a fully offline scan also needs `--no-vulns --no-licenses --no-docker`, since enrichment otherwise queries OSV, deps.dev, and the Docker/HuggingFace registries. Any OpenAI-compatible endpoint is supported via `EXPLAIN_BASE_URL` + `EXPLAIN_API_KEY` + `EXPLAIN_MODEL`.
 
 Available both as a CLI flag (`--explain`) and as a REST endpoint (`POST /api/v1/apps/:name/explain`). Requires `EXPLAIN_API_KEY` (or a localhost `EXPLAIN_BASE_URL` for Ollama). The API endpoint returns `501` if not configured.
 
