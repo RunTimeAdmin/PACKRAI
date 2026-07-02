@@ -29,11 +29,13 @@ async function deleteOrg(db, orgId) {
 }
 
 async function createOrg(client, name, email, keyHash) {
-    await client.query(
+    const { rows } = await client.query(
         `INSERT INTO organizations (name, email, api_key, plan, trial_ends_at)
-         VALUES ($1, $2, $3, 'trial', NOW() + interval '14 days')`,
+         VALUES ($1, $2, $3, 'trial', NOW() + interval '14 days')
+         RETURNING id, name`,
         [name, email, keyHash]
     );
+    return rows[0];
 }
 
 async function findEmailVerification(db, token) {

@@ -62,7 +62,9 @@ function generateCycloneDX(components, meta = {}) {
  * honestly is exactly what the spec's aggregate field is for.
  */
 function buildCompositions(components, meta) {
-    const rootRef = meta.name ? undefined : undefined; // root carried via metadata.component
+    // The root component is carried via metadata.component, so it is not repeated
+    // here; compositions only declare the completeness of the assembly graph.
+    void meta;
     const libRefs = components.filter((c) => c.ecosystem !== 'ai').map((c) => c.purl);
     const aiRefs  = components.filter((c) => c.ecosystem === 'ai').map((c) => c.purl);
 
@@ -78,7 +80,6 @@ function buildCompositions(components, meta) {
     if (!compositions.length) {
         compositions.push({ aggregate: 'unknown', assemblies: [] });
     }
-    void rootRef;
     return compositions;
 }
 

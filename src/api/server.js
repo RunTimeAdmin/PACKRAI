@@ -10,9 +10,11 @@ if (!process.env.HMAC_SECRET) {
 
 const app  = require('./app');
 const { startKEVRefresh } = require('../kev');
+const { startSessionCleanup } = require('./services/sessionService');
 
 const PORT = process.env.PORT || 3080;
 app.listen(PORT, () => {
     process.stdout.write(`SBOMix API listening on :${PORT}\n`);
     if (process.env.KATZILLA_API_KEY) startKEVRefresh();
+    startSessionCleanup();
 });

@@ -69,16 +69,6 @@ function sha256File(filePath, maxBytes = MAX_PROMPT_BYTES) {
     } catch { return null; }
 }
 
-function readSnippet(filePath, max = 400) {
-    try {
-        const fd  = fs.openSync(filePath, 'r');
-        const buf = Buffer.allocUnsafe(max);
-        let n;
-        try { n = fs.readSync(fd, buf, 0, max, 0); } finally { fs.closeSync(fd); }
-        return buf.toString('utf8', 0, n).replace(/\s+/g, ' ').trim();
-    } catch { return ''; }
-}
-
 /** Single filesystem walk collecting agentic-relevant files. */
 function walkAgentic(root, maxDepth = 4) {
     const mcpFiles = [];

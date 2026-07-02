@@ -1,13 +1,38 @@
 'use strict';
+const { validateSession } = require('../services/sessionService');
 
 const express = require('express');
 const path    = require('path');
+const db      = require('../db');
 
 const router  = express.Router();
 const PAGES   = path.join(__dirname, '..');
 
 router.get('/',        (_req, res) => res.redirect('/register'));
-router.get('/dashboard', (_req, res) => res.sendFile(path.join(PAGES, 'dashboard.html')));
+router.get('/login', (_req, res) => res.sendFile(path.join(PAGES, 'login.html')));
+
+// The dashboard renders org data via innerHTML with manual escaping. A strict
+// per-page CSP (no 'unsafe-inline' for scripts) is the backstop if an escape is
+// ever missed. All dashboard JS lives in the external /dashboard.js file.
+const DASHBOARD_CSP =
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+    "connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; " +
+    "frame-src 'none'; base-uri 'none'; form-action 'self'";
+
+router.get('/dashboard', async (req, res) => {
+    try {
+        const orgId = await validateSession(req.headers.cookie);
+        if (!orgId) return res.redirect('/login');
+    } catch {
+        return res.redirect('/login');
+    }
+    res.setHeader('Content-Security-Policy', DASHBOARD_CSP);
+    res.sendFile(path.join(PAGES, 'dashboard.html'));
+});
+router.get('/dashboard.js', (_req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.sendFile(path.join(PAGES, 'dashboard.js'));
+});
 router.get('/register',  (_req, res) => res.sendFile(path.join(PAGES, 'register.html')));
 router.get('/terms',     (_req, res) => res.sendFile(path.join(PAGES, 'terms.html')));
 router.get('/privacy',   (_req, res) => res.sendFile(path.join(PAGES, 'privacy.html')));
@@ -18,7 +43,24 @@ router.get('/docs', (_req, res) => {
     res.sendFile(path.join(PAGES, 'docs.html'));
 });
 router.get('/pricing',   (_req, res) => res.sendFile(path.join(PAGES, 'pricing.html')));
-router.get('/health',    (_req, res) => res.json({ ok: true }));
+router.get('/health', async (_req, res) => {
+    try {
+        await db.query('SELECT 1');
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('[health]', err.message);
+        res.status(503).json({ ok: false, error: 'database unavailable' });
+    }
+});
+
+router.get('/.well-known/security.txt', (_req, res) => {
+    res.type('text/plain').send(
+        'Contact: https://github.com/RunTimeAdmin/sbomix/security/advisories/new\n' +
+        'Canonical: https://api.sbomix.com/.well-known/security.txt\n' +
+        'Expires: 2027-06-28T00:00:00Z\n' +
+        'Preferred-Languages: en\n'
+    );
+});
 
 router.get('/recover', (_req, res) => {
     res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Recover API Key — SBOMix</title>

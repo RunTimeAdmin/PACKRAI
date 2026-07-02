@@ -42,4 +42,21 @@ const scanLimiter = rateLimit({
     message: { error: 'Scan rate limit exceeded — try again in an hour' },
 });
 
-module.exports = { apiLimiter, ingestLimiter, registerLimiter, resendKeyLimiter, scanLimiter };
+
+const loginLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts — try again in an hour' },
+});
+
+const authLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many auth attempts — try again in an hour' },
+});
+
+module.exports = { apiLimiter, ingestLimiter, registerLimiter, resendKeyLimiter, scanLimiter, loginLimiter, authLimiter };

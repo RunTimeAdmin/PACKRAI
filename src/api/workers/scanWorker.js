@@ -82,7 +82,7 @@ async function runJob(job) {
         sendScanCompleteEmail(orgId, appName, result.stats, cloned.commitSha).catch(() => {});
 
         if (purlToCompId.size > 0) {
-            osvEnrichAsync(orgId, result.cyclonedx.components.filter(c => c.purl), purlToCompId)
+            osvEnrichAsync(orgId, result.cyclonedx.components.filter(c => c.purl), purlToCompId, sbomId)
                 .then(() => {
                     applyKEVAfterIngest(orgId);
                     return sendVulnAlertIfNew(orgId, appId, appName);

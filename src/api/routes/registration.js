@@ -1,4 +1,5 @@
 'use strict';
+const { createSession, sessionCookieHeader } = require('../services/sessionService');
 
 function esc(s) {
     return String(s)
@@ -57,10 +58,16 @@ router.get('/verify', async (req, res) => {
 
         const apiKey  = generateApiKey();
         const keyHash = hashApiKey(apiKey);
+        let orgId;
         await db.tx(async (client) => {
-            await orgsRepo.createOrg(client, org_name, email, keyHash);
+            const newOrg = await orgsRepo.createOrg(client, org_name, email, keyHash);
             await orgsRepo.deleteEmailVerification(client, token);
+            orgId = newOrg.id;
         });
+        // createSession runs after the transaction commits: dashboard_sessions has a
+        // FK to organizations, so the org must be visible to the connection pool first.
+        const sessionToken = await createSession(orgId);
+        res.setHeader('Set-Cookie', sessionCookieHeader(sessionToken));
 
         await sendEmail({
             to: email,

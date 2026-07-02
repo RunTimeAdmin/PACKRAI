@@ -16,42 +16,7 @@ const router = express.Router();
 router.post('/api/v1/ingest', ingestLimiter, requireScope('sbom:ingest'), async (req, res) => {
     const { app: appName, version, commit, branch, cyclonedx, spdx, stats, aibom } = req.body;
 
-    try {
-        const { rows: orgRows } = await db.query(
-            `SELECT plan, subscription_status, trial_ends_at FROM organizations WHERE id = $1`, [req.org.id]
-        );
-        const plan   = resolveEffectivePlan(orgRows[0]?.plan, orgRows[0]?.trial_ends_at);
-        const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
-
-        const { rows: appRows } = await db.query(
-            `SELECT COUNT(*) AS cnt FROM applications WHERE org_id = $1`, [req.org.id]
-        );
-        const existingApp = await db.query(
-            `SELECT id FROM applications WHERE org_id = $1 AND name = $2`, [req.org.id, appName]
-        );
-        const isNewApp = existingApp.rows.length === 0;
-        if (isNewApp && Number(appRows[0].cnt) >= limits.apps) {
-            return res.status(402).json({
-                error: `Your ${plan} plan supports up to ${limits.apps} app${limits.apps === 1 ? '' : 's'}. Upgrade to add more.`,
-                upgrade: true,
-            });
-        }
-
-        const { rows: scanRows } = await db.query(
-            `SELECT COUNT(*) AS cnt FROM sboms
-             WHERE org_id = $1 AND created_at >= date_trunc('month', NOW())`, [req.org.id]
-        );
-        if (Number(scanRows[0].cnt) >= limits.scansPerMonth) {
-            return res.status(402).json({
-                error: `Monthly scan limit reached (${limits.scansPerMonth.toLocaleString()} for ${plan} plan). Upgrade or wait until next month.`,
-                upgrade: true,
-            });
-        }
-    } catch (limitErr) {
-        console.error('[ingest/plan-check]', limitErr.message);
-        return res.status(500).json({ error: 'Internal server error' });
-    }
-
+    // ── Validate the request body before touching the database ──
     if (!appName || typeof appName !== 'string') {
         return res.status(400).json({ error: 'app must be a non-empty string' });
     }
@@ -88,6 +53,43 @@ router.post('/api/v1/ingest', ingestLimiter, requireScope('sbom:ingest'), async 
         if (stats.critical !== undefined && (typeof stats.critical !== 'number' || stats.critical < 0)) {
             return res.status(400).json({ error: 'stats.critical must be a non-negative number' });
         }
+    }
+
+    // ── Enforce plan limits ──
+    try {
+        const { rows: orgRows } = await db.query(
+            `SELECT plan, subscription_status, trial_ends_at FROM organizations WHERE id = $1`, [req.org.id]
+        );
+        const plan   = resolveEffectivePlan(orgRows[0]?.plan, orgRows[0]?.trial_ends_at);
+        const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+
+        const { rows: appRows } = await db.query(
+            `SELECT COUNT(*) AS cnt FROM applications WHERE org_id = $1`, [req.org.id]
+        );
+        const existingApp = await db.query(
+            `SELECT id FROM applications WHERE org_id = $1 AND name = $2`, [req.org.id, appName]
+        );
+        const isNewApp = existingApp.rows.length === 0;
+        if (isNewApp && Number(appRows[0].cnt) >= limits.apps) {
+            return res.status(402).json({
+                error: `Your ${plan} plan supports up to ${limits.apps} app${limits.apps === 1 ? '' : 's'}. Upgrade to add more.`,
+                upgrade: true,
+            });
+        }
+
+        const { rows: scanRows } = await db.query(
+            `SELECT COUNT(*) AS cnt FROM sboms
+             WHERE org_id = $1 AND created_at >= date_trunc('month', NOW())`, [req.org.id]
+        );
+        if (Number(scanRows[0].cnt) >= limits.scansPerMonth) {
+            return res.status(402).json({
+                error: `Monthly scan limit reached (${limits.scansPerMonth.toLocaleString()} for ${plan} plan). Upgrade or wait until next month.`,
+                upgrade: true,
+            });
+        }
+    } catch (limitErr) {
+        console.error('[ingest/plan-check]', limitErr.message);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 
     try {

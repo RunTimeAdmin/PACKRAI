@@ -32,7 +32,7 @@ async function claimNextScanJob(workerId) {
              LIMIT 1
              FOR UPDATE SKIP LOCKED
          )
-         RETURNING id, org_id, repo, ref, token_ref`,
+         RETURNING id, org_id, repo, ref`,
         [workerId]
     );
     return rows[0] || null;

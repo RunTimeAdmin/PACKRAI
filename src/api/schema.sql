@@ -9,6 +9,8 @@ CREATE TABLE organizations (
     -- Stores HMAC-SHA256(plaintext_key, HMAC_SECRET) — plaintext never persisted.
     -- Legacy org:admin key; prefer api_keys table for new issuance.
     api_key     TEXT        UNIQUE NOT NULL,
+    -- GitHub OAuth identity (set when an org signs in with GitHub). See migrate_006.
+    github_id              TEXT    UNIQUE,
     vuln_alerts            BOOLEAN NOT NULL DEFAULT TRUE,
     plan                   TEXT    NOT NULL DEFAULT 'trial'
                                    CHECK (plan IN ('free','trial','starter','team','business','enterprise')),
@@ -233,3 +235,27 @@ CREATE TABLE email_verifications (
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ── Login tokens (magic-link, 15min TTL, one-time use) ───────────────────────
+CREATE TABLE login_tokens (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id     UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    token_hash TEXT        NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_login_tokens_hash ON login_tokens(token_hash);
+CREATE INDEX idx_login_tokens_org  ON login_tokens(org_id);
+
+-- ── Dashboard sessions (HttpOnly cookie, 24h TTL) ─────────────────────────────
+-- token_hash is HMAC-SHA256(session_token, HMAC_SECRET). The raw token lives
+-- only in the browser cookie; the server never stores or logs it.
+CREATE TABLE dashboard_sessions (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id     UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    token_hash TEXT        NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_sessions_hash ON dashboard_sessions(token_hash);
+CREATE INDEX idx_sessions_org  ON dashboard_sessions(org_id);

@@ -14,7 +14,7 @@ router.get('/api/v1/billing', requireScope('org:admin'), async (req, res) => {
              FROM organizations WHERE id = $1`,
             [req.org.id]
         );
-        const org           = rows[0];
+        const org          = rows[0];
         const effectivePlan = resolveEffectivePlan(org.plan, org.trial_ends_at);
         res.json({
             plan:               org.plan || 'free',

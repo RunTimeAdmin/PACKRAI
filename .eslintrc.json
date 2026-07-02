@@ -13,5 +13,11 @@
     "no-var": "error",
     "prefer-const": "warn",
     "eqeqeq": ["error", "always"]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/api/dashboard.js"],
+      "env": { "browser": true, "node": false }
+    }
+  ]
 }

@@ -31,6 +31,48 @@ jobs:
       - name: Dependency audit
         run: npm audit --omit=dev --audit-level=high
 
+  integration:
+    name: Integration (Postgres)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER:     sbomix
+          POSTGRES_PASSWORD: sbomix
+          POSTGRES_DB:       sbomix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sbomix"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://sbomix:sbomix@localhost:5432/sbomix_test
+      HMAC_SECRET:  ci-integration-hmac-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies (CLI + API)
+        run: |
+          npm ci
+          npm ci --prefix src/api
+
+      - name: Load database schema
+        run: psql "$DATABASE_URL" -f src/api/schema.sql
+
+      - name: Run integration tests
+        run: node --test tests/integration.test.js
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

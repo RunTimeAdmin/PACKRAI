@@ -1,17 +1,28 @@
 'use strict';
 
+const crypto  = require('crypto');
 const express = require('express');
 const db      = require('../db');
 const { hashApiKey, generateApiKey } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Constant-time comparison so the admin key can't be recovered byte-by-byte
+// via response timing.
+function adminKeyMatches(provided) {
+    const expected = process.env.ADMIN_KEY;
+    if (!provided || !expected) return false;
+    const a = Buffer.from(String(provided));
+    const b = Buffer.from(expected);
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+}
+
 router.post('/api/v1/orgs', async (req, res) => {
     if (process.env.ENABLE_ADMIN_API !== 'true') {
         return res.status(404).json({ error: 'Not found' });
     }
-    const adminKey = req.headers['x-admin-key'];
-    if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+    if (!adminKeyMatches(req.headers['x-admin-key'])) {
         return res.status(403).json({ error: 'Forbidden' });
     }
 
